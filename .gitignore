@@ -1,0 +1,10 @@
+# virtual env
+.venv/
+# python artifacts
+__pycache__/
+*.py[cod]
+# Streamlit secrets
+.streamlit/secrets.toml
+# OS clutter
+.DS_Store
+EOF

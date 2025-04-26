@@ -1,0 +1,15 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pytorch-geometric.com/whl/torch-2.3.0+cpu
+
+numpy<2.0
+pandas>=2.2
+streamlit>=1.33
+networkx>=3.3
+python-louvain>=0.16          # community_louvain
+scikit-learn>=1.4
+scipy>=1.10                   # used by networkx.from_scipy_sparse_array
+matplotlib>=3.8
+plotly>=5.20
+
+torch==2.3.0+cpu              # CPU-only build
+torch_geometric==2.6.0
