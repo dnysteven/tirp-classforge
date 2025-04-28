@@ -17,6 +17,7 @@ def render_sidebar():
     <ul class="space-y-2">
       <li><a href="/" class="cf-link">Home</a></li>
       <li><a href="/gnn_group_allocation" class="cf-link">GNN Allocation</a></li>
+      <li><a href="/cpsat_group_allocation" class="cf-link">CP-SAT Allocation</a></li>
     </ul>
   </div>
   """, unsafe_allow_html=True)
