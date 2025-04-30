@@ -1,86 +1,106 @@
-import io, numpy as np, pandas as pd, torch
-import networkx as nx, community as community_louvain
-from sklearn.preprocessing import StandardScaler
-from sklearn.cluster import KMeans
-from sklearn.neighbors import NearestNeighbors
+"""
+GNN-based classroom allocator.
+• Loads a pretrained GCN encoder, feature scaler and (optionally) a pre-fit
+  K-Means model from the *models/* folder — all paths are **relative**.
+• Accepts per-feature weights and number-of-classrooms.
+• Returns a DataFrame with a new `Classroom` column numbered from 1.
+"""
+#utils/gnn_utils.py
+from pathlib import Path
+import joblib, torch, pandas as pd, torch.nn.functional as F
 from torch_geometric.data import Data
 from torch_geometric.nn import GCNConv
-import torch.nn.functional as F
+from sklearn.cluster import KMeans
 
-# ── column normaliser ────────────────────────────────────────────────
-def normalise_columns(df: pd.DataFrame) -> pd.DataFrame:
-	df = df.copy()
-	if "student_id" not in df.columns:
-		if "Student_ID" in df.columns:
-			df = df.rename(columns={"Student_ID": "student_id"})
-		else:
-			raise ValueError("Missing Student_ID / student_id")
-	if "name" not in df.columns:
-		if {"First_Name", "Last_Name"} <= set(df.columns):
-			df["name"] = df["First_Name"].str.strip() + " " + df["Last_Name"].str.strip()
-		else:
-			df["name"] = df["student_id"].astype(str)
-	if "Final_Score" not in df.columns:
-		raise ValueError("Missing Final_Score")
-	if "life_satisfaction" not in df.columns:
-		df["life_satisfaction"] = pd.NA
-	return df[["student_id", "name", "Final_Score", "life_satisfaction"]]
+# ── artefact paths (project-relative) ────────────────────────────────
+BASE_DIR   = Path(__file__).resolve().parent.parent
+MODELS_DIR = BASE_DIR / "models"
 
-# ── tiny utility for downloads ───────────────────────────────────────
-def to_csv_bytes(df: pd.DataFrame) -> bytes:
-	buf = io.BytesIO(); df.to_csv(buf, index=False); return buf.getvalue()
+MODEL_PATH  = MODELS_DIR / "gnn_model1.pth"
+SCALER_PATH = MODELS_DIR / "scaler1.pkl"
+KMEANS_PATH = MODELS_DIR / "kmeans_model1.pkl"
 
-# ── GNN model definition ─────────────────────────────────────────────
-class GNNModel(torch.nn.Module):
-	def __init__(self, input_dim, hidden_dim=8, output_dim=2):
+# ── GCN encoder definition ───────────────────────────────────────────
+class GCNEncoder(torch.nn.Module):
+	def __init__(self, in_dim: int, hid: int = 64, emb: int = 10):
 		super().__init__()
-		self.conv1 = GCNConv(input_dim, hidden_dim)
-		self.conv2 = GCNConv(hidden_dim, output_dim)
+		self.conv1 = GCNConv(in_dim, hid)
+		self.conv2 = GCNConv(hid, hid)
+		self.conv3 = GCNConv(hid, emb)
 
 	def forward(self, data: Data):
-		x, edge_index = data.x, data.edge_index
-		x = F.relu(self.conv1(x, edge_index))
-		return self.conv2(x, edge_index)
+		x, ei = data.x, data.edge_index
+		x = F.relu(self.conv1(x, ei))
+		x = F.relu(self.conv2(x, ei))
+		return self.conv3(x, ei)
 
-# ── main allocator ───────────────────────────────────────────────────
-def smart_allocate_groups(df_raw: pd.DataFrame, k_neighbors: int = 5):
-	df = normalise_columns(df_raw)
-	
-	# ── SAMPLE ONLY 2000 STUDENTS FOR TESTING ───────────────────────
-	if len(df) > 2000:
-		df = df.sample(n=2000, random_state=42).reset_index(drop=True)
-	
-	df["Final_Score"]       = df["Final_Score"].fillna(50)
-	df["life_satisfaction"] = df["life_satisfaction"].fillna(5)
+# ── load artefacts once ──────────────────────────────────────────────
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-	# build k-NN graph on Final_Score
-	nbrs = NearestNeighbors(n_neighbors=k_neighbors + 1).fit(df[["Final_Score"]])
-	adj  = nbrs.kneighbors_graph(mode="connectivity")
-	G    = nx.from_scipy_sparse_array(adj)
-	G    = nx.relabel_nodes(G, {i: sid for i, sid in enumerate(df.student_id)})
+_model = GCNEncoder(in_dim=5).to(_DEVICE)
+_state = torch.load(MODEL_PATH, map_location=_DEVICE)
+_model.load_state_dict(_state, strict=False)   # ignore extra decoder.* keys
+_model.eval()
 
-	# node features
-	feats   = StandardScaler().fit_transform(df[["Final_Score", "life_satisfaction"]])
-	x_tensor = torch.tensor(feats, dtype=torch.float)
-	id_map   = {sid: idx for idx, sid in enumerate(df.student_id)}
-	e0, e1   = zip(*((id_map[u], id_map[v]) for u, v in G.edges()))
-	edge_idx = torch.tensor([e0, e1], dtype=torch.long)
+_scaler = joblib.load(SCALER_PATH)
+_kmeans_prefit = joblib.load(KMEANS_PATH) if KMEANS_PATH.exists() else None
 
-	data = Data(x=x_tensor, edge_index=edge_idx)
+# ── public constants & API ───────────────────────────────────────────
+REQUIRED_COLS = [
+	"Total_Score",
+	"Study_Hours_per_Week",
+	"Stress_Level (1-10)",
+	"is_bullied",
+	"feels_safe_in_class",
+]
 
-	# GNN training (tiny)
-	model = GNNModel(input_dim=2)
-	optim = torch.optim.Adam(model.parameters(), lr=0.01)
-	model.train()
-	for _ in range(10):
-		optim.zero_grad()
-		loss = F.mse_loss(model(data), data.x)
-		loss.backward(); optim.step()
+def allocate(
+	df_raw: pd.DataFrame,
+	weights: dict[str, float],
+	n_cls: int
+) -> pd.DataFrame:
+	"""
+	Allocate students into `n_cls` classrooms using GNN embeddings + K-Means.
 
-	emb = model(data).detach().numpy()
+	Parameters
+	----------
+	df_raw : DataFrame containing REQUIRED_COLS plus Student_ID
+	weights: dict of feature weights keyed by REQUIRED_COLS
+	n_cls  : number of classrooms/clusters
 
-	# k-means clustering into ~5-person groups
-	n_groups = max(2, len(df) // 5)
-	labels   = KMeans(n_clusters=n_groups, random_state=42).fit_predict(emb)
-	df["group"] = labels + 1        # groups start at 1
-	return df[["student_id", "name", "group"]], G, labels
+	Returns
+	-------
+	DataFrame with new column `Classroom` numbered from 1.
+	"""
+	df = df_raw.copy()
+
+	# normalise boolean column
+	if df["is_bullied"].dtype == object:
+		df["is_bullied"] = df["is_bullied"].str.lower().map({"yes": 1, "no": 0})
+
+	# apply user weights & scale
+	X = df[REQUIRED_COLS].astype(float)
+	for col in REQUIRED_COLS:
+		X[col] *= weights[col]
+	X_scaled = _scaler.transform(X)
+
+	# trivial self-edge graph (replace with real edges when available)
+	n = len(df)
+	edge_idx = torch.arange(n, dtype=torch.long).repeat(2, 1).to(_DEVICE)
+
+	data = Data(
+		x=torch.tensor(X_scaled, dtype=torch.float32).to(_DEVICE),
+		edge_index=edge_idx,
+	)
+
+	with torch.no_grad():
+		emb = _model(data).cpu().numpy()
+
+	# reuse pre-fit KMeans if it matches; else fit fresh
+	if _kmeans_prefit is not None and _kmeans_prefit.n_clusters == n_cls:
+		labels = _kmeans_prefit.predict(emb)
+	else:
+		labels = KMeans(n_clusters=n_cls, random_state=42).fit_predict(emb)
+
+	df["Classroom"] = labels + 1   # start at 1
+	return df
