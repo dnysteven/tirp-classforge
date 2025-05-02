@@ -95,13 +95,29 @@ with tab_roster:
 
 # ───────── Visualisations tab ────────────────────────────────────────
 with tab_vis:
-	st.markdown("### 📊 Students per Classroom – Bar")
-	bar_df = df_alloc["Classroom"].value_counts().sort_index().reset_index()
-	bar_df.columns = ["Classroom", "Students"]
-	st.bar_chart(bar_df, x="Classroom", y="Students")
+  # Interpret clustering
+  st.markdown(f"#### 🏷 Number of Classrooms: `{num_cls}`")
+  st.info(
+		"""
+		Each student was represented by a GNN-based embedding using the weighted combination
+		of the 5 selected features. Then, KMeans clustering grouped these students into distinct
+		classroom clusters based on similarity in those weighted traits.
 
-	st.markdown("### 🥧 Classroom distribution – Pie")
-	st.plotly_chart(
+		You can modify feature importance using the sliders in the sidebar to influence how students are grouped —
+		for example, increasing 'Stress Level' weight makes clustering more sensitive to mental load,
+		while reducing it emphasizes academics or safety more.
+
+		Try changing feature weights or the number of classrooms and observe how group assignments update instantly!
+		"""
+	)
+  
+  st.markdown("### 📊 Students per Classroom – Bar")
+  bar_df = df_alloc["Classroom"].value_counts().sort_index().reset_index()
+  bar_df.columns = ["Classroom", "Students"]
+  st.bar_chart(bar_df, x="Classroom", y="Students")
+  
+  st.markdown("### 🥧 Classroom distribution – Pie")
+  st.plotly_chart(
 		px.pie(bar_df, names="Classroom", values="Students", title="Classroom share"),
 		use_container_width=True,
 	)
