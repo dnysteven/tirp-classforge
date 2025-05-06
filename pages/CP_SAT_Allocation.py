@@ -40,8 +40,8 @@ if st.button("Run allocation"):
     with tab_roster:
         editable=st.checkbox("Enable manual edits",value=False)
         df_edit=st.data_editor(df,disabled=not editable,num_rows="fixed",
-                              column_config={"Class":st.column_config.NumberColumn(min_value=1)},
-                              use_container_width=True)
+                                column_config={"Class":st.column_config.NumberColumn(min_value=1)},
+                                use_container_width=True)
         if editable: df=df_edit
         cols=st.columns(2)
         for i,(cls,sub) in enumerate(df.groupby("Class"),1):
