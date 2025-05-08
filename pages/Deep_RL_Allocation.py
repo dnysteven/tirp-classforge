@@ -92,9 +92,9 @@ with tab_vis:
         .sort_index()
         .reset_index(name="Students")
     )
-    counts.columns = ["Classroom", "Students"]      # 👈 rename both cols
+    counts.columns = ["Classroom", "Students"]
 
-    st.markdown("### 📊 Students per Classroom – Bar")
+    st.markdown("### 📊 Students per Classroom")
     st.bar_chart(counts, x="Classroom", y="Students", use_container_width=True)
 
     if "Total_Score" in df_raw.columns:
@@ -107,7 +107,7 @@ with tab_vis:
             .groupby("Assigned_Classroom", as_index=False)["Total_Score"]
             .mean()
         )
-        avg_df.columns = ["Classroom", "AvgScore"]  # 👈 proper names
+        avg_df.columns = ["Classroom", "AvgScore"]
 
         st.markdown("### 📊 Average Total Score by Class")
         st.bar_chart(avg_df, x="Classroom", y="AvgScore", use_container_width=True)
