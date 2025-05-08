@@ -87,6 +87,14 @@ ENGINES.append(
     )
 )
 
+ENGINES.append(
+    (
+        "Genetic Algorithm Model",
+        "GA_Allocation",
+        "optimising academic balance, social compatibility, and behavioural separation using an evolutionary strategy that simulates friend networks and classroom constraints",
+    )
+)
+
 # ────────────────────────────────────────────────────────────────────
 # 3.  Show engine buttons + LLM text
 # ────────────────────────────────────────────────────────────────────
