@@ -140,11 +140,6 @@ def run_comparison(
 
 # ===== 4. Friend / Conflict edge counts ==========================
 def friend_conflict_counts(df_alloc: pd.DataFrame, G: nx.Graph) -> tuple[int, int]:
-    """
-    Returns:
-      (number of friend edges inside same class,
-      number of disrespect edges inside same class)
-    """
     cmap = dict(zip(df_alloc["Student_ID"], df_alloc["Classroom"]))
     f_in = d_in = 0
     for u, v, d in G.edges(data=True):
