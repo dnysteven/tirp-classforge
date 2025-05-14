@@ -1,32 +1,35 @@
-# Home.py  – upload CSV ▸ choose allocation engine ▸ brief LLM blurb
+# Home.py – upload CSV ▸ choose allocation engine ▸ compare engines
 import os, streamlit as st, pandas as pd
 from utils.ui_utils import apply_global_styles
 
 # ────────────────────────────────────────────────────────────────────
-# 0.  LLM helper  (uses LangChain + Ollama; graceful fallback)
+# 0.  AI LLM Agent  (LangChain + Ollama)
 # ────────────────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def llm_explain(criteria: str) -> str:
     """
-    Returns ONE short sentence that begins with:
-    'Run this model if you want to create class roster based on …'
-    If Ollama / LangChain is unavailable, returns the plain criteria string.
+    Returns one sentence that begins with
+    'Run this allocation model if you want to create class roster based on …'
+
+    Falls back to a hard-coded string if Ollama / LangChain is unavailable.
     """
     try:
         from langchain_community.llms import Ollama
         from langchain.prompts import ChatPromptTemplate
 
-        llm = Ollama(model="mistral")
+        llm = Ollama(model="mistral")   # make sure this model exists
         prompt = ChatPromptTemplate.from_template(
             "In no more than 45 words, write ONE sentence that starts exactly with "
             "'Run this allocation model if you want to create class roster based on ' "
-            "followed by {criteria}, and make sure to translate the criteria to be readable for general or new user "
-            "use terminology such as students, teachers and class roster"
+            "followed by {criteria}. Use simple terms understood by students, teachers, "
+            "and school administrators."
         )
-        chain = prompt | llm
+
+        chain = prompt | llm          # build runnable chain
         return chain.invoke({"criteria": criteria}).strip()
     except Exception:
-        return f"Run this model if you want to create class roster based on {criteria}"
+        # Silent fallback keeps Home page responsive even if Ollama is offline
+        return f"Run this allocation model if you want to create class roster based on {criteria}"
 
 # ────────────────────────────────────────────────────────────────────
 # 1.  Upload CSV once
@@ -36,13 +39,11 @@ apply_global_styles()
 st.title("ClassForge – Classroom Allocation System")
 
 st.info(
-    """
-    Welcome to ClassForge, an Online Web App to create class rosters using various AI engine.\n
-    To begin, please upload your csv file containing your student data below
-    """
+    "Welcome to ClassForge, an online web app to create class rosters using various AI engines.\n\n"
+    "Upload your student CSV file below."
 )
 
-upl = st.file_uploader("Upload your student CSV:", type="csv")
+upl = st.file_uploader("Upload student CSV:", type="csv")
 if upl:
     st.session_state["uploaded_df"] = pd.read_csv(upl)
     st.success(f"✅ Loaded {len(st.session_state.uploaded_df)} rows.")
@@ -50,53 +51,25 @@ if upl:
 df_uploaded = st.session_state.get("uploaded_df")
 
 # ────────────────────────────────────────────────────────────────────
-# 2.  Detect available engines
+# 2.  Define engine list (label, page-path, criteria)
 # ────────────────────────────────────────────────────────────────────
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 ENGINES = [
-    (
-        "CP‑SAT Model",
-        "CP_SAT_Allocation",
-        "academic scores, wellbeing, friendships and respect under class‑size limits",
-    )
+    ("CP-SAT Model",           "pages/CP_SAT_Allocation.py",
+    "academic scores, wellbeing, friendships and respect under class-size limits"),
+    ("GNN Model",              "pages/GNN_Allocation.py",
+    "similarity in scores, study hours, stress, bullying and safety"),
+    ("Deep-RL (DQN) Model",    "pages/Deep_RL_Allocation_new.py",
+    "balanced performance, stress, bullying and friendships sequentially"),
+    ("Genetic Algorithm Model","pages/GA_Allocation.py",
+    "optimising diverse student traits through evolutionary strategies"),
+    ("Scenario-Based AI Model","pages/Scenario_Allocation.py",
+    "simulating outcomes across academic and social grouping scenarios"),
 ]
 
-if os.path.exists(os.path.join(MODELS_DIR, "gnn_model1.pth")):
-    ENGINES.append(
-        (
-            "GNN Model",
-            "GNN_Allocation",
-            "similarity in scores, study hours, stress, bullying and safety",
-        )
-    )
-
-if os.path.exists(os.path.join(MODELS_DIR, "deep_rl_model.pth")):
-    ENGINES.append(
-        (
-            "Deep Reinforcement Learning Model",
-            "Deep_RL_Allocation",
-            "balanced performance, stress, bullying and friendships sequentially",
-        )
-    )
-
-ENGINES.append(
-    (
-        "Scenario‑Based AI Model",
-        "Scenario_Allocation",
-        "simulating academic and social outcomes using several grouping scenarios",
-    )
-)
-
-ENGINES.append(
-    (
-        "Genetic Algorithm Model",
-        "GA_Allocation",
-        "optimising academic balance, social compatibility, and behavioural separation using an evolutionary strategy that simulates friend networks and classroom constraints",
-    )
-)
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 
 # ────────────────────────────────────────────────────────────────────
-# 3.  Show engine buttons + LLM text
+# 3.  Show engine buttons
 # ────────────────────────────────────────────────────────────────────
 if df_uploaded is not None:
     st.markdown("---")
@@ -110,7 +83,7 @@ if df_uploaded is not None:
         for (label, slug, criteria), col in zip(row_engines, cols):
             with col:
                 if st.button(label, key=slug):
-                    page_path = f"pages/{slug}.py"
+                    page_path = f"{slug}"
                     if hasattr(st, "switch_page"):
                         st.switch_page(page_path)
                     else:
@@ -118,3 +91,13 @@ if df_uploaded is not None:
                         st.experimental_rerun()
 
                 st.info(llm_explain(criteria))
+else:
+    st.info("⬆️ Upload a CSV to unlock engine buttons.")
+
+# ────────────────────────────────────────────────────────────────────
+# 4.  Model comparer (NEW)
+# ────────────────────────────────────────────────────────────────────
+if df_uploaded is not None:
+    st.markdown("---")
+    if st.button("🔀 Compare multiple models"):
+        st.switch_page("pages/Compare_Models.py")
