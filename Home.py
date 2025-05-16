@@ -58,7 +58,7 @@ ENGINES = [
     "academic scores, wellbeing, friendships and respect under class-size limits"),
     ("GNN Model",              "pages/GNN_Allocation.py",
     "similarity in scores, study hours, stress, bullying and safety"),
-    ("Deep-RL (DQN) Model",    "pages/Deep_RL_Allocation_new.py",
+    ("Deep-RL (DQN) Model",    "pages/Deep_RL_Allocation.py",
     "balanced performance, stress, bullying and friendships sequentially"),
     ("Genetic Algorithm Model","pages/GA_Allocation.py",
     "optimising diverse student traits through evolutionary strategies"),

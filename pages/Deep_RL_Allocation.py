@@ -17,15 +17,15 @@ if "uploaded_df" not in st.session_state:
 else:
     df_raw = st.session_state.uploaded_df.copy()
 
-# ── 2. Ensure a Student_Name column exists (bug‑free test) ──────────
-if "Student_Name" not in df_raw.columns and {
-    "First_Name", "Last_Name"
-}.issubset(df_raw.columns):                         # ← fixed test
+# ── 2. Rebuild Student_Name (always) ────────────────────────────────
+if {"First_Name", "Last_Name"}.issubset(df_raw.columns):
     df_raw["Student_Name"] = (
         df_raw["First_Name"].astype(str).str.strip()
         + " "
         + df_raw["Last_Name"].astype(str).str.strip()
     )
+else:
+    df_raw["Student_Name"] = df_raw["Student_ID"].astype(str)
 
 # ── 3. Parameter controls ───────────────────────────────────────────
 cap_col, cls_col = st.columns(2)
@@ -43,9 +43,19 @@ with st.spinner("Allocating with DQN…"):
         num_classrooms=num_classrooms,
         max_capacity=capacity,
     )
+    
+    # Ensure Student_Name is restored (in case allocator strips it)
+    if "Student_Name" in df_raw.columns:
+        assigned_df = assigned_df.merge(
+            df_raw[["Student_ID", "Student_Name"]],
+            on="Student_ID",
+            how="left"
+        )
 
 # Move key columns forward
-front = ["Assigned_Classroom", "Student_ID", "Student_Name"]
+front = ["Assigned_Classroom", "Student_ID"]
+if "Student_Name" in assigned_df.columns:
+    front.append("Student_Name")
 assigned_df = assigned_df[front + [c for c in assigned_df.columns if c not in front]]
 
 # ── 5. Tabs: rosters first, visualisations second ───────────────────
