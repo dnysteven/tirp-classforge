@@ -1,5 +1,4 @@
 # pages/Compare_Models.py
-# Stand-alone model-vs-model comparer (exactly 2 engines)
 # ─────────────────────────────────────────────────────────
 import streamlit as st, pandas as pd, numpy as np, plotly.graph_objects as go
 import torch, torch.nn.functional as F, joblib
@@ -23,9 +22,12 @@ def llm_compare(ctx: str) -> str:
         from langchain_community.llms import Ollama
         from langchain.prompts import ChatPromptTemplate
         prompt = ChatPromptTemplate.from_template(
-            "In no more than between 100 - 200 words, compare the classroom allocations for the "
-            "following AI engines. Focus on how they differ in friendships kept, "
-            "conflicts kept, and average class size.\n\n{ctx}"
+            "In no more than between 150 - 200 words and two paragraphs, compare the classroom allocations for the "
+            "following AI Models. Focus on how they differ in friendships kept, "
+            "conflicts kept, and average class size.\n\n{ctx}, "
+            "Assume explanation for general audience with no background in AI or SNA "
+            "Make sure the number comparison are correct "
+            "Finally, choose one better for fostering harmony in class"
         )
         return (prompt | Ollama(model="mistral")).invoke({"ctx": ctx}).strip()
     except Exception:
@@ -158,7 +160,7 @@ for (mid,df_alloc),sp in zip(results.items(),cols):
         cmap=dict(zip(df_alloc["Student_ID"],df_alloc["Classroom"]))
         f_all,c_all=friend_conflict_counts(df_alloc,G)
         metrics[name]={"friends":f_all,"conflicts":c_all,
-                       "avg":float(df_alloc.groupby("Classroom").size().mean())}
+                        "avg":float(df_alloc.groupby("Classroom").size().mean())}
 
         for cls,sub in list(df_alloc.groupby("Classroom"))[:3]:
             nodes=set(sub["Student_ID"])
@@ -175,11 +177,10 @@ for (mid,df_alloc),sp in zip(results.items(),cols):
             node=go.Scatter(x=xs,y=ys,mode="markers",
                             marker=dict(size=8,color="yellow"),name="students",
                             text=[str(n) for n in nodes],hoverinfo="text")
-            fig=go.Figure(data=tr+[node],
-                          layout=go.Layout(title=f"Class {cls}",
-                                           margin=dict(l=10,r=10,t=30,b=10),
-                                           hovermode="closest",
-                                           showlegend=True))
+            fig=go.Figure(data=tr+[node], layout=go.Layout(title=f"Class {cls}",
+                            margin=dict(l=10,r=10,t=30,b=10),
+                            hovermode="closest",
+                            showlegend=True))
             st.plotly_chart(fig,use_container_width=True)
             st.caption(f"👥 **{len(nodes)}** students  |  ✅ {f_in} friends kept  |  ❌ {d_in} conflicts")
 
@@ -187,6 +188,6 @@ for (mid,df_alloc),sp in zip(results.items(),cols):
 # 5.  LLM explanation in st.info
 # ─────────────────────────────────────────────────────────
 ctx="\n".join(f"{n}: friends {m['friends']}, conflicts {m['conflicts']}, avg size {m['avg']:.1f}"
-              for n,m in metrics.items())
+            for n,m in metrics.items())
 st.markdown("---"); st.subheader("🤖 Model comparison explanation")
 st.info(llm_compare(ctx))

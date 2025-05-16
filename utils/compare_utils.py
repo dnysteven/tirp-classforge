@@ -2,6 +2,7 @@
 # -----------------------------------------------------------
 from __future__ import annotations
 import pandas as pd, numpy as np, networkx as nx
+import itertools, ast
 from pathlib import Path
 
 # ---- public mapping used by Home & Compare pages -------------
@@ -17,18 +18,120 @@ ENGINE_IDS = {
 def sample_df(df: pd.DataFrame, frac: float, max_n: int, seed: int) -> pd.DataFrame:
     n_rows = min(int(len(df) * frac), max_n)
     return (
-        df.sample(frac=1, random_state=seed)   # shuffle
-          .iloc[:n_rows]
-          .reset_index(drop=True)
+        df.sample(frac=1, random_state=seed)
+        .iloc[:n_rows]
+        .reset_index(drop=True)
     )
+    
+# ===== 2. SNA Graph builders ===================================
+def build_social_graph(
+    df: pd.DataFrame,
+    *,
+    use_synthetic: bool = True,
+    friend_hours_tol: int = 2,
+    top_friend_q: float = 0.75,
+    hi_satisf: int = 7,
+    hi_stress: int = 8,
+) -> nx.Graph:
+    """
+    Returns an undirected graph with edge attribute 'relation_type'
+    (= 'friend' or 'disrespect').
 
-def build_graph(df_sample: pd.DataFrame, seed: int):
-    from utils.ga_utils import simulate_graph
-    G = simulate_graph(df_sample)
+    • If `use_synthetic` and the columns Friends / Disrespected_By exist, those lists are used directly.
+    • Otherwise, edges are inferred heuristically from existing columns.
+    """
+    G = nx.Graph()
+    ids = df["Student_ID"].tolist()
+    G.add_nodes_from(ids)
+
+    # --- 1) use synthetic lists if present ---
+    if use_synthetic and {"Friends", "Disrespected_By"} <= set(df.columns):
+        for _, row in df.iterrows():
+            sid = row["Student_ID"]
+
+            # Friends list
+            friends = row["Friends"]
+            if isinstance(friends, str):
+                friends = ast.literal_eval(friends)
+            for fid in friends:
+                if fid in ids:
+                    G.add_edge(sid, fid, relation_type="friend")
+
+            # Disrespect list
+            enemies = row["Disrespected_By"]
+            if isinstance(enemies, str):
+                enemies = ast.literal_eval(enemies)
+            for eid in enemies:
+                if eid in ids:
+                    G.add_edge(sid, eid, relation_type="disrespect")
+        return G
+
+    # --- 2) heuristic inference from other columns ---
+    top_cut = df["closest_friend_count"].quantile(top_friend_q)
+
+    # convenient Series look-ups
+    fcnt   = df.set_index("Student_ID")["closest_friend_count"]
+    hours  = df.set_index("Student_ID")["Study_Hours_per_Week"]
+    groupw = df.set_index("Student_ID")["prefers_group_work"]                # Y/N
+    advice = df.set_index("Student_ID")["gets_schoolwork_advice_from_friends"]
+    feedbk = df.set_index("Student_ID")["receives_learning_feedback_from_peers"]
+    satisf = df.set_index("Student_ID")["life_satisfaction"].fillna(0)
+    safe   = df.set_index("Student_ID")["feels_safe_in_class"].fillna(0)
+    comfort= df.set_index("Student_ID")["feels_comfortable_at_school"].fillna(0)
+    iso    = df.set_index("Student_ID")["feels_isolated_due_to_opinion"].fillna(0)
+    stress = df.set_index("Student_ID")["Stress_Level (1-10)"].fillna(0)
+    bully  = df.set_index("Student_ID")["is_bullied"].map({"Yes": 1, "No": 0}).fillna(0)
+    disrp  = df.set_index("Student_ID")["disrespected_by_peers"].map({"Yes": 1, "No": 0}).fillna(0)
+
+    for u, v in itertools.combinations(ids, 2):
+        score_f = score_d = 0
+
+        # -------  A.  Collaboration / study-buddy  ---------------------------
+        # both like group work
+        if groupw[u] == "Y" and groupw[v] == "Y":
+            score_f += 2
+
+        # similar study hours
+        if abs(hours[u] - hours[v]) <= friend_hours_tol:
+            score_f += 2
+
+        # someone gives OR receives academic advice/feedback
+        if (
+            advice[u] == "Y" or advice[v] == "Y" or
+            feedbk[u] == "Y" or feedbk[v] == "Y"
+        ):
+            score_f += 2
+
+        # -------  B.  Well-being support  ------------------------------------
+        # one student isolated/bullied  +  the other high comfort & safety
+        lonely_u = iso[u] >= 6 or bully[u] or disrp[u]
+        lonely_v = iso[v] >= 6 or bully[v] or disrp[v]
+        supporter_u = comfort[u] >= hi_satisf and safe[u] >= 4
+        supporter_v = comfort[v] >= hi_satisf and safe[v] >= 4
+
+        if (lonely_u and supporter_v) or (lonely_v and supporter_u):
+            score_f += 5
+
+        # -------  C.  Conflict heuristics ------------------------------------
+        if disrp[u] or disrp[v]:                    score_d += 1
+        if bully[u] or bully[v]:                    score_d += 1
+        if max(stress[u], stress[v]) >= hi_stress:  score_d += 1
+
+        # -------  D.  Decide edge type ---------------------------------------
+        if score_f > score_d and score_f >= 1:
+            G.add_edge(u, v, relation_type="friend")
+        elif score_d >= 3 and score_d >= score_f:
+            G.add_edge(u, v, relation_type="disrespect")
+
+    return G
+
+# Return social graph + spring-layout positions.
+def build_graph(df_sample: pd.DataFrame, seed: int, *, use_synthetic=False):
+    G = build_social_graph(df_sample, use_synthetic=use_synthetic)
     pos = nx.spring_layout(G, seed=seed)
     return G, pos
 
-# ===== 2. Per-engine default runners ===========================
+# ===== 3. Per-engine default runners ===========================
 from utils.cpsat_utils   import compute_fitness, solve_constraints
 from utils.gnn_utils     import allocate as gnn_allocate
 from utils.ga_utils      import load_and_scale, setup_deap, run_ga, simulate_graph
@@ -110,7 +213,7 @@ _ENGINE_FUNCS = {
     "SCENARIO": _scenario,
 }
 
-# ===== 3. Master helper for Compare page =======================
+# ===== 4. Master helper for Compare page =======================
 def run_comparison(
     full_df: pd.DataFrame,
     model_ids: list[str],
@@ -119,8 +222,7 @@ def run_comparison(
     seed: int,
 ):
     """
-    Returns:
-      sample_df, G_base, pos, results_dict, errors_dict
+    Return sample_df, G_base, pos, results_dict, errors_dict
     """
     sample = sample_df(full_df, frac, max_n, seed)
     G, pos = build_graph(sample, seed)
@@ -143,7 +245,8 @@ def friend_conflict_counts(df_alloc: pd.DataFrame, G: nx.Graph) -> tuple[int, in
     cmap = dict(zip(df_alloc["Student_ID"], df_alloc["Classroom"]))
     f_in = d_in = 0
     for u, v, d in G.edges(data=True):
-        if cmap.get(u) != cmap.get(v): continue
+        if cmap.get(u) != cmap.get(v):
+            continue
         if d["relation_type"] == "friend":
             f_in += 1
         elif d["relation_type"] == "disrespect":
