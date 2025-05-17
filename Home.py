@@ -17,7 +17,7 @@ def llm_explain(criteria: str) -> str:
         from langchain_community.llms import Ollama
         from langchain.prompts import ChatPromptTemplate
 
-        llm = Ollama(model="mistral")   # make sure this model exists
+        llm = Ollama(model="mistral")
         prompt = ChatPromptTemplate.from_template(
             "In no more than 45 words, write ONE sentence that starts exactly with "
             "'Run this allocation model if you want to create class roster based on ' "
@@ -25,10 +25,10 @@ def llm_explain(criteria: str) -> str:
             "and school administrators."
         )
 
-        chain = prompt | llm          # build runnable chain
+        chain = prompt | llm
         return chain.invoke({"criteria": criteria}).strip()
     except Exception:
-        # Silent fallback keeps Home page responsive even if Ollama is offline
+        # Silent fallback if Ollama is offline
         return f"Run this allocation model if you want to create class roster based on {criteria}"
 
 # ────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ def llm_explain(criteria: str) -> str:
 # ────────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="ClassForge Home", layout="wide")
 apply_global_styles()
-st.title("ClassForge – Classroom Allocation System")
+st.title("ClassForge - Classroom Allocation System")
 
 st.info(
     "Welcome to ClassForge, an online web app to create class rosters using various AI engines.\n\n"
@@ -99,5 +99,6 @@ else:
 # ────────────────────────────────────────────────────────────────────
 if df_uploaded is not None:
     st.markdown("---")
+    st.markdown("## Select compare models to check its performance")
     if st.button("🔀 Compare multiple models"):
         st.switch_page("pages/Compare_Models.py")

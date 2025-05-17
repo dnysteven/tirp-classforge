@@ -78,12 +78,12 @@ def load_model(
     """
     Load notebook-trained DQN.
     • If layer shapes mismatch, only compatible weights are loaded and
-      mismatching layers are re-initialised (to allow k-class flexibility).
+        mismatching layers are re-initialised (to allow k-class flexibility).
     """
     model = QNetwork(state_size, action_size)
     ckpt_path = Path(ckpt_path)
     if not ckpt_path.exists():
-        print("[deep_rl_utils] Checkpoint not found – using random-init weights.")
+        print("[deep_rl_utils] Checkpoint not found - using random-init weights.")
         model.eval()
         return model
 
@@ -132,7 +132,7 @@ def allocate_students(
     model: QNetwork,
     *,
     num_classrooms: int = ACTION_DIM,
-    max_capacity: int = 30,
+    max_capacity: int = 100,
     epsilon: float = EPSILON_END,        # greedy by default
 ) -> pd.DataFrame:
     """
