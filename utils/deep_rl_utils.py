@@ -7,7 +7,7 @@ This module is extracted from *Classroom Allocation Dqn.ipynb* so that
 Functions
 ---------
 load_model(state_size: int, action_size: int, ckpt_path: str = "models/deep_rl_model.pth") -> QNetwork
-    Load a pretrained DQN with exactly the notebook’s architecture / hyper-params.
+    Load a pretrained DQN with exactly the notebook's architecture / hyper-params.
 
 allocate_students(df: DataFrame, model: QNetwork, *, num_classrooms=10, max_capacity=30) -> DataFrame
     Run greedy ε-greedy inference and return a DataFrame with Assigned_Classroom + Reason.
@@ -117,7 +117,7 @@ def _prepare_state_matrix(df_raw: pd.DataFrame) -> torch.Tensor:
     # Ensure required columns exist
     missing = [c for c in _FEATURES if c not in df.columns]
     if missing:
-        raise ValueError(f"Deep-RL allocator – missing columns: {missing}")
+        raise ValueError(f"Deep-RL allocator - missing columns: {missing}")
 
     # Fill NaN with column mean
     df[_FEATURES] = df[_FEATURES].fillna(df[_FEATURES].mean())
@@ -136,7 +136,7 @@ def allocate_students(
     epsilon: float = EPSILON_END,        # greedy by default
 ) -> pd.DataFrame:
     """
-    Greedy ε-greedy allocation (no replay – inference only).
+    Greedy ε-greedy allocation (no replay - inference only).
 
     Returns df with columns:
         Student_ID | Assigned_Classroom | Reason (why that class)
