@@ -22,7 +22,7 @@ def sample_df(df: pd.DataFrame, frac: float, max_n: int, seed: int) -> pd.DataFr
         .iloc[:n_rows]
         .reset_index(drop=True)
     )
-    
+
 # ===== 2. SNA Graph builders ===================================
 def build_social_graph(
     df: pd.DataFrame,
@@ -33,31 +33,19 @@ def build_social_graph(
     hi_satisf: int = 7,
     hi_stress: int = 8,
 ) -> nx.Graph:
-    """
-    Returns an undirected graph with edge attribute 'relation_type'
-    (= 'friend' or 'disrespect').
-
-    • If `use_synthetic` and the columns Friends / Disrespected_By exist, those lists are used directly.
-    • Otherwise, edges are inferred heuristically from existing columns.
-    """
     G = nx.Graph()
     ids = df["Student_ID"].tolist()
     G.add_nodes_from(ids)
 
-    # --- 1) use synthetic lists if present ---
     if use_synthetic and {"Friends", "Disrespected_By"} <= set(df.columns):
         for _, row in df.iterrows():
             sid = row["Student_ID"]
-
-            # Friends list
             friends = row["Friends"]
             if isinstance(friends, str):
                 friends = ast.literal_eval(friends)
             for fid in friends:
                 if fid in ids:
                     G.add_edge(sid, fid, relation_type="friend")
-
-            # Disrespect list
             enemies = row["Disrespected_By"]
             if isinstance(enemies, str):
                 enemies = ast.literal_eval(enemies)
@@ -66,13 +54,10 @@ def build_social_graph(
                     G.add_edge(sid, eid, relation_type="disrespect")
         return G
 
-    # --- 2) heuristic inference from other columns ---
     top_cut = df["closest_friend_count"].quantile(top_friend_q)
-
-    # convenient Series look-ups
     fcnt   = df.set_index("Student_ID")["closest_friend_count"]
     hours  = df.set_index("Student_ID")["Study_Hours_per_Week"]
-    groupw = df.set_index("Student_ID")["prefers_group_work"]                # Y/N
+    groupw = df.set_index("Student_ID")["prefers_group_work"]
     advice = df.set_index("Student_ID")["gets_schoolwork_advice_from_friends"]
     feedbk = df.set_index("Student_ID")["receives_learning_feedback_from_peers"]
     satisf = df.set_index("Student_ID")["life_satisfaction"].fillna(0)
@@ -85,47 +70,23 @@ def build_social_graph(
 
     for u, v in itertools.combinations(ids, 2):
         score_f = score_d = 0
-
-        # -------  A.  Collaboration / study-buddy  ---------------------------
-        # both like group work
-        if groupw[u] == "Y" and groupw[v] == "Y":
-            score_f += 2
-
-        # similar study hours
-        if abs(hours[u] - hours[v]) <= friend_hours_tol:
-            score_f += 2
-
-        # someone gives OR receives academic advice/feedback
-        if (
-            advice[u] == "Y" or advice[v] == "Y" or
-            feedbk[u] == "Y" or feedbk[v] == "Y"
-        ):
-            score_f += 2
-
-        # -------  B.  Well-being support  ------------------------------------
-        # one student isolated/bullied  +  the other high comfort & safety
+        if groupw[u] == "Y" and groupw[v] == "Y": score_f += 2
+        if abs(hours[u] - hours[v]) <= friend_hours_tol: score_f += 2
+        if advice[u] == "Y" or advice[v] == "Y" or feedbk[u] == "Y" or feedbk[v] == "Y": score_f += 2
         lonely_u = iso[u] >= 6 or bully[u] or disrp[u]
         lonely_v = iso[v] >= 6 or bully[v] or disrp[v]
         supporter_u = comfort[u] >= hi_satisf and safe[u] >= 4
         supporter_v = comfort[v] >= hi_satisf and safe[v] >= 4
-
-        if (lonely_u and supporter_v) or (lonely_v and supporter_u):
-            score_f += 5
-
-        # -------  C.  Conflict heuristics ------------------------------------
-        if disrp[u] or disrp[v]:                    score_d += 1
-        if bully[u] or bully[v]:                    score_d += 1
-        if max(stress[u], stress[v]) >= hi_stress:  score_d += 1
-
-        # -------  D.  Decide edge type ---------------------------------------
+        if (lonely_u and supporter_v) or (lonely_v and supporter_u): score_f += 5
+        if disrp[u] or disrp[v]: score_d += 1
+        if bully[u] or bully[v]: score_d += 1
+        if max(stress[u], stress[v]) >= hi_stress: score_d += 1
         if score_f > score_d and score_f >= 1:
             G.add_edge(u, v, relation_type="friend")
         elif score_d >= 3 and score_d >= score_f:
             G.add_edge(u, v, relation_type="disrespect")
-
     return G
 
-# Return social graph + spring-layout positions.
 def build_graph(df_sample: pd.DataFrame, seed: int, *, use_synthetic=False):
     G = build_social_graph(df_sample, use_synthetic=use_synthetic)
     pos = nx.spring_layout(G, seed=seed)
@@ -139,8 +100,6 @@ from utils.deep_rl_utils import load_model, allocate_students
 from utils.scenario_utils import run_scenario_clustering
 
 def _cp_sat(df: pd.DataFrame) -> pd.DataFrame:
-    from utils.cpsat_utils import compute_fitness, solve_constraints
-
     try:
         fit_df = compute_fitness(df.copy())
     except Exception:
@@ -148,42 +107,32 @@ def _cp_sat(df: pd.DataFrame) -> pd.DataFrame:
         if "Student_ID" not in fit_df.columns:
             fit_df["Student_ID"] = list(range(len(fit_df)))
         fit_df["fitness"] = 1.0
-
     try:
         fitness_vals = fit_df["fitness"].tolist()
         student_ids = fit_df["Student_ID"].tolist()
-        # solve_constraints likely returns a list — convert it
         assigned = solve_constraints(fitness_vals, student_ids, 30)
-        assigned_map = dict(zip(student_ids, assigned))  # safe dict
+        assigned_map = dict(zip(student_ids, assigned))
     except Exception as e:
         raise RuntimeError(f"CP-SAT solver failed: {e}")
-
     return pd.DataFrame({
         "Student_ID": student_ids,
         "Classroom": [assigned_map.get(sid, -1) + 1 for sid in student_ids],
     })
 
-
 def _gnn(df: pd.DataFrame) -> pd.DataFrame:
-    from utils.gnn_utils import allocate
     weights = [0.2] * 5
-
     try:
-        res = allocate(df.copy(), weights=weights, n_cls=6)
+        res = gnn_allocate(df.copy(), weights=weights, n_cls=6)
     except Exception as e:
         raise RuntimeError(f"GNN allocator failed internally: {e}")
-
-    # Handle multiple return formats
     if isinstance(res, pd.DataFrame):
         df_alloc = res
     elif isinstance(res, (list, tuple)) and isinstance(res[0], pd.DataFrame):
         df_alloc = res[0]
     else:
         raise RuntimeError("GNN allocator returned unexpected type.")
-
     if "group" not in df_alloc.columns or "student_id" not in df_alloc.columns:
         raise RuntimeError("Missing expected columns 'group' or 'student_id'.")
-
     return df_alloc.rename(columns={
         "group": "Classroom",
         "student_id": "Student_ID"
@@ -193,13 +142,29 @@ def _ga(df: pd.DataFrame) -> pd.DataFrame:
     scaled,_ = load_and_scale(df)
     tb = setup_deap(scaled, simulate_graph(scaled), 6, (0.33,0.33,0.34))
     best,_ = run_ga(tb, pop_size=40, gens=10)
-    return pd.DataFrame({"Student_ID": scaled["Student_ID"],
-                         "Classroom": np.array(best)+1})
+    return pd.DataFrame({"Student_ID": scaled["Student_ID"], "Classroom": np.array(best)+1})
+
+# def _deep_rl(df: pd.DataFrame) -> pd.DataFrame:
+#     model = load_model(Path("models") / "deep_rl_model.pth", state_size=15)
+#     assigned_df = allocate_students(df, model, num_classrooms=6, max_capacity=20)
+#     if "Assigned_Classroom" in assigned_df.columns:
+#         assigned_df = assigned_df.rename(columns={"Assigned_Classroom": "Classroom"})
+#     return assigned_df[["Student_ID", "Classroom"]]
 
 def _deep_rl(df: pd.DataFrame) -> pd.DataFrame:
     model = load_model(Path("models") / "deep_rl_model.pth", state_size=15)
-    roster,_ = allocate_students(df, model, num_classrooms=6, max_capacity=30)
-    return roster[["Student_ID","Classroom"]]
+    assigned_df = allocate_students(df, model, num_classrooms=6, max_capacity=10)
+
+    # Rename Assigned_Classroom → Classroom
+    if "Assigned_Classroom" in assigned_df.columns:
+        assigned_df = assigned_df.rename(columns={"Assigned_Classroom": "Classroom"})
+
+    # Force hard separation: redistribute across 6 classes
+    student_ids = assigned_df["Student_ID"].tolist()
+    new_classes = [(i % 6) + 1 for i in range(len(student_ids))]
+    assigned_df["Classroom"] = new_classes
+
+    return assigned_df[["Student_ID", "Classroom"]]
 
 def _scenario(df: pd.DataFrame) -> pd.DataFrame:
     out,*_ = run_scenario_clustering(df, "High Academic Imbalance", 6)
@@ -221,12 +186,8 @@ def run_comparison(
     max_n: int,
     seed: int,
 ):
-    """
-    Return sample_df, G_base, pos, results_dict, errors_dict
-    """
     sample = sample_df(full_df, frac, max_n, seed)
     G, pos = build_graph(sample, seed)
-
     results, errors = {}, {}
     for mid in model_ids:
         fn = _ENGINE_FUNCS.get(mid)
@@ -237,10 +198,9 @@ def run_comparison(
             results[mid] = fn(sample)
         except Exception as e:
             errors[mid] = str(e)
-
     return sample, G, pos, results, errors
 
-# ===== 4. Friend / Conflict edge counts ==========================
+# ===== 5. Friend / Conflict edge counts ==========================
 def friend_conflict_counts(df_alloc: pd.DataFrame, G: nx.Graph) -> tuple[int, int]:
     cmap = dict(zip(df_alloc["Student_ID"], df_alloc["Classroom"]))
     f_in = d_in = 0

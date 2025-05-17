@@ -78,12 +78,12 @@ def load_model(
     """
     Load notebook-trained DQN.
     • If layer shapes mismatch, only compatible weights are loaded and
-      mismatching layers are re-initialised (to allow k-class flexibility).
+        mismatching layers are re-initialised (to allow k-class flexibility).
     """
     model = QNetwork(state_size, action_size)
     ckpt_path = Path(ckpt_path)
     if not ckpt_path.exists():
-        print("[deep_rl_utils] Checkpoint not found – using random-init weights.")
+        print("[deep_rl_utils] Checkpoint not found - using random-init weights.")
         model.eval()
         return model
 
@@ -117,7 +117,7 @@ def _prepare_state_matrix(df_raw: pd.DataFrame) -> torch.Tensor:
     # Ensure required columns exist
     missing = [c for c in _FEATURES if c not in df.columns]
     if missing:
-        raise ValueError(f"Deep-RL allocator – missing columns: {missing}")
+        raise ValueError(f"Deep-RL allocator - missing columns: {missing}")
 
     # Fill NaN with column mean
     df[_FEATURES] = df[_FEATURES].fillna(df[_FEATURES].mean())
@@ -132,11 +132,11 @@ def allocate_students(
     model: QNetwork,
     *,
     num_classrooms: int = ACTION_DIM,
-    max_capacity: int = 30,
+    max_capacity: int = 100,
     epsilon: float = EPSILON_END,        # greedy by default
 ) -> pd.DataFrame:
     """
-    Greedy ε-greedy allocation (no replay – inference only).
+    Greedy ε-greedy allocation (no replay - inference only).
 
     Returns df with columns:
         Student_ID | Assigned_Classroom | Reason (why that class)

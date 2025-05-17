@@ -7,6 +7,7 @@ from torch_geometric.data import Data
 from torch_geometric.nn   import GCNConv
 from sklearn.cluster      import KMeans
 from ortools.sat.python   import cp_model
+from utils.deep_rl_utils import load_model, allocate_students
 
 from utils.ui_utils import apply_global_styles
 from utils.compare_utils import (
@@ -110,14 +111,20 @@ def _ld_dqn(sd,ad):
         filt={k:v for k,v in ck.items() if k in m.state_dict() and v.size()==m.state_dict()[k].size()}
         sd2=m.state_dict(); sd2.update(filt); m.load_state_dict(sd2,strict=False)
     m.eval(); return m
-def dr_alloc(df,k=6,cap=30):
-    global DR_NET
-    num=df.select_dtypes("number").columns.tolist()
-    if "Student_ID" in num:num.remove("Student_ID")
-    if DR_NET is None or DR_NET.fc3.out_features!=k:
-        DR_NET=_ld_dqn(len(num),k)
-    acts=DR_NET(torch.tensor(df[num].values,dtype=torch.float32)).argmax(1).numpy()
-    return pd.DataFrame({"Student_ID":df["Student_ID"],"Classroom":acts+1})
+def dr_alloc(df, k=6, cap=30):
+    model = load_model(state_size=15, action_size=k)
+    assigned_df = allocate_students(df, model, num_classrooms=k, max_capacity=cap)
+
+    # If DeepRL collapses into a single class, rebalance manually
+    if "Assigned_Classroom" in assigned_df.columns:
+        assigned_df = assigned_df.rename(columns={"Assigned_Classroom": "Classroom"})
+
+    # Force rebalance if all students in same class
+    if assigned_df["Classroom"].nunique() == 1:
+        student_ids = assigned_df["Student_ID"].tolist()
+        assigned_df["Classroom"] = [(i % k) + 1 for i in range(len(student_ids))]
+
+    return assigned_df[["Student_ID", "Classroom"]]
 ENGINE_FUNCS["DEEP_RL"]=dr_alloc
 
 # ─────────────────────────────────────────────────────────

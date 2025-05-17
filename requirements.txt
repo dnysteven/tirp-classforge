@@ -11,7 +11,11 @@ scipy>=1.10
 matplotlib>=3.8
 plotly>=5.20
 ortools==9.12.4544
+<<<<<<< HEAD
 torch==2.7.0+cpu
+=======
+torch==2.3.0+cpu
+>>>>>>> 25ca76bb38066efaf69c1290a55fffd5bac14507
 torch_geometric==2.6.0
 langchain-community>=0.2
 ollama-python>=0.1
