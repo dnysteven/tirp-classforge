@@ -7,7 +7,7 @@ This module is extracted from *Classroom Allocation Dqn.ipynb* so that
 Functions
 ---------
 load_model(state_size: int, action_size: int, ckpt_path: str = "models/deep_rl_model.pth") -> QNetwork
-    Load a pretrained DQN with exactly the notebook’s architecture / hyper-params.
+    Load a pretrained DQN with exactly the notebook's architecture / hyper-params.
 
 allocate_students(df: DataFrame, model: QNetwork, *, num_classrooms=10, max_capacity=30) -> DataFrame
     Run greedy ε-greedy inference and return a DataFrame with Assigned_Classroom + Reason.

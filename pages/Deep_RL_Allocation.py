@@ -1,5 +1,5 @@
 # pages/DeepRL_Allocation.py
-import streamlit as st, pandas as pd
+import streamlit as st, pandas as pd, altair as alt
 from utils.deep_rl_utils import load_model, allocate_students
 from utils.cpsat_utils   import to_csv_bytes
 
@@ -95,7 +95,7 @@ with tab_roster:
 with tab_vis:
     st.markdown(f"#### 🏷 Number of Classrooms: `{num_classrooms}`")
 
-    # Correctly label the bar‑chart dataframe
+    # Students per Classroom
     counts = (
         assigned_df["Assigned_Classroom"]
         .value_counts()
@@ -107,17 +107,63 @@ with tab_vis:
     st.markdown("### 📊 Students per Classroom")
     st.bar_chart(counts, x="Classroom", y="Students", use_container_width=True)
 
-    if "Total_Score" in df_raw.columns:
-        avg_df = (
-            assigned_df.merge(
-                df_raw[["Student_ID", "Total_Score"]],
-                on="Student_ID",
-                how="left",
-            )
-            .groupby("Assigned_Classroom", as_index=False)["Total_Score"]
-            .mean()
-        )
-        avg_df.columns = ["Classroom", "AvgScore"]
+    # Allocation Reasons
+    st.markdown("### 📝 Allocation Reasons (by Category)")
+    # Compute counts
+    reason_counts = (
+        assigned_df["Reason"]
+          .value_counts()
+          .reset_index(name="Count")
+          .rename(columns={"index": "Reason"})
+    )
+    # Map each raw reason into a broader category by keyword matching
+    def map_reason_category(reason: str) -> str:
+        rl = reason.lower()
+        if "profile" in rl:
+            return "Skill Balance"
+        # anything about disrespect, bullying, stress or satisfaction → Wellbeing
+        elif any(term in rl for term in ["disrespect", "bullied", "stress", "satisfaction"]):
+            return "Wellbeing"
+        # friendship cues → Social Fit
+        elif "friend" in rl:
+            return "Social Fit"
+        # high performers, mentors, leaders, challenges → Performance
+        elif any(term in rl for term in ["performer", "mentor", "leadership", "challenge"]):
+            return "Performance"
+        # fall-back bucket
+        else:
+            return "Other"
 
-        st.markdown("### 📊 Average Total Score by Class")
-        st.bar_chart(avg_df, x="Classroom", y="AvgScore", use_container_width=True)
+    reason_counts["Category"] = reason_counts["Reason"].apply(map_reason_category)
+
+    # Sort descending
+    reason_counts = reason_counts.sort_values("Count", ascending=False)
+
+    # Build Altair chart
+    chart = (
+        alt.Chart(reason_counts)
+          .mark_bar(cornerRadiusTopLeft=3, cornerRadiusBottomLeft=3)
+          .encode(
+             y=alt.Y(
+                 "Reason:N", sort="-x", title=None,
+                 axis=alt.Axis(labelFontSize=12, labelLimit=300)
+             ),
+             x=alt.X(
+                 "Count:Q", title="Number of Students",
+                 axis=alt.Axis(labelFontSize=12, titleFontSize=14)
+             ),
+             color=alt.Color(
+                 "Category:N", title="Reason Category",
+                 legend=alt.Legend(orient="right", labelFontSize=12, titleFontSize=14)
+             ),
+             tooltip=[
+                 alt.Tooltip("Reason:N", title="Reason"),
+                 alt.Tooltip("Count:Q", title="Count"),
+                 alt.Tooltip("Category:N", title="Category")
+             ]
+          )
+          .properties(height=600, width=800)
+          .configure_view(strokeOpacity=0)
+          .configure_axis(grid=False)
+    )
+    st.altair_chart(chart, use_container_width=True)
