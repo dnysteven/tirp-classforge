@@ -28,7 +28,7 @@ def llm_compare(ctx: str) -> str:
             "conflicts kept, and average class size.\n\n{ctx}, "
             "Assume explanation for general audience with no background in AI or SNA "
             "Make sure the number comparison are correct "
-            "Finally, choose one better for fostering harmony in class"
+            "Finally, you MUST choose one better for fostering harmony in class"
         )
         return (prompt | Ollama(model="mistral")).invoke({"ctx": ctx}).strip()
     except Exception:

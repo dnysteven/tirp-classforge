@@ -10,9 +10,9 @@ from utils.cpsat_utils import to_csv_bytes  # existing helper for CSV download
 import networkx as nx
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="GA‑Powered Classroom Allocation", layout="wide")
+st.set_page_config(page_title="GA-Powered Classroom Allocation", layout="wide")
 apply_global_styles()
-st.title("🧬 ClassForge: Genetic‑Algorithm Classroom Allocation")
+st.title("🧬 ClassForge: Genetic-Algorithm Classroom Allocation")
 
 # ---------------------------------------------------------------
 # 1. DATA SOURCE
@@ -75,7 +75,7 @@ with tab_roster:
         # Decode into DataFrame
         df_alloc = pd.DataFrame({
             "Student_ID": df_scaled["Student_ID"],
-            "Classroom":  [cls + 1 for cls in best_ind]  # 1‑indexed
+            "Classroom":  [cls + 1 for cls in best_ind]  # 1-indexed
         })
 
         # Add Name column if available
@@ -103,8 +103,8 @@ with tab_roster:
         )
         st.session_state.ga_df_edit = df_edit
 
-        # Per‑class tables
-        st.markdown("#### 🗂️  Class‑by‑Class View")
+        # Per-class tables
+        st.markdown("#### 🗂️  Class-by-Class View")
         cols_tbl = st.columns(2)
         for idx, (cls, sub) in enumerate(df_edit.groupby("Classroom"), 1):
             with cols_tbl[(idx - 1) % 2]:

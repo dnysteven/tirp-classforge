@@ -23,27 +23,44 @@ def load_and_scale(df):
     df[feature_cols] = scaled_values
     return df, feature_cols
 
+# UPDATED: align with GA engine’s expected edge logic
 def simulate_graph(df):
     G = nx.Graph()
     ids = df["Student_ID"].tolist()
+    for u in ids:
+        G.add_node(u)
 
     for i in range(len(ids)):
         for j in range(i + 1, len(ids)):
             u = ids[i]
             v = ids[j]
-            add_friend = (
-                df.iloc[i]["has_close_friends"] == "Yes" and
-                df.iloc[j]["has_close_friends"] == "Yes"
-            )
-            add_disrespect = (
-                df.iloc[i]["disrespected_by_peers"] == "Yes" or
-                df.iloc[j]["disrespected_by_peers"] == "Yes"
-            )
+            row_u = df.iloc[i]
+            row_v = df.iloc[j]
 
-            if add_friend:
+            score_f = 0
+            score_d = 0
+
+            # Friendship indicators
+            if row_u.get("closest_friend_count", 0) >= 0.6 and row_v.get("closest_friend_count", 0) >= 0.6:
+                score_f += 2
+            if abs(row_u.get("Stress_Level (1-10)", 0) - row_v.get("Stress_Level (1-10)", 0)) <= 0.3:
+                score_f += 2
+            if row_u.get("life_satisfaction", 0) >= 0.6 and row_v.get("life_satisfaction", 0) >= 0.6:
+                score_f += 1
+
+            # Conflict indicators
+            if row_u.get("disrespected_by_peers", 0) >= 0.5 or row_v.get("disrespected_by_peers", 0) >= 0.5:
+                score_d += 1
+            if row_u.get("is_bullied", 0) >= 0.5 or row_v.get("is_bullied", 0) >= 0.5:
+                score_d += 1
+            if max(row_u.get("Stress_Level (1-10)", 0), row_v.get("Stress_Level (1-10)", 0)) >= 0.8:
+                score_d += 1
+
+            if score_f > score_d and score_f >= 2:
                 G.add_edge(u, v, relation_type="friend")
-            elif add_disrespect:
+            elif score_d >= 2 and score_d >= score_f:
                 G.add_edge(u, v, relation_type="disrespect")
+
     return G
 
 def setup_deap(df, sim_matrix, num_classes, weights=(0.4, 0.3, 0.3)):
@@ -84,7 +101,7 @@ def setup_deap(df, sim_matrix, num_classes, weights=(0.4, 0.3, 0.3)):
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
     toolbox.register("evaluate", evaluate)
     toolbox.register("mate", tools.cxUniform, indpb=0.2)
-    toolbox.register("mutate", tools.mutUniformInt, low=0, up=num_classes - 1, indpb=0.2)
+    toolbox.register("mutate", tools.mutUniformInt, low=0, up=num_classes - 1, indpb=0.1)
     toolbox.register("select", tools.selNSGA2)
     return toolbox
 
@@ -92,40 +109,11 @@ def run_ga(toolbox, pop_size=100, gens=50, cxpb=0.7, mutpb=0.2):
     pop = toolbox.population(n=pop_size)
     hof = tools.HallOfFame(1)
     stats = tools.Statistics(lambda ind: ind.fitness.values)
-    stats.register("avg", np.mean, axis=0)
-    stats.register("best", np.max, axis=0)
-
-    logbook = tools.Logbook()
-    logbook.header = ["gen", "nevals"] + stats.fields
-
-    try:
-        pop, log = algorithms.eaMuPlusLambda(
-            pop, toolbox,
-            mu=pop_size, lambda_=pop_size * 2,
-            cxpb=cxpb, mutpb=mutpb,
-            ngen=gens,
-            stats=stats,
-            halloffame=hof,
-            verbose=True
-        )
-    except Exception as e:
-        print(f"[GA ERROR] {e}")
-        return None, []
-
-    if len(hof) == 0:
-        print("[⚠] Hall of Fame is empty — using best from population instead.")
-        best = tools.selBest(pop, 1)[0]
-    else:
-        best = hof[0]
-
+    stats.register("avg", np.mean)
+    stats.register("std", np.std)
+    stats.register("min", np.min)
+    stats.register("max", np.max)
+    pop, log = algorithms.eaSimple(pop, toolbox, cxpb=cxpb, mutpb=mutpb, ngen=gens, 
+                                   stats=stats, halloffame=hof, verbose=False)
+    best = hof[0]
     return best, log
-
-def build_solution_similarity_graph(pop, threshold=0.8):
-    n = len(pop)
-    G = nx.Graph()
-    for i in range(n):
-        for j in range(i+1, n):
-            sim = np.mean(np.array(pop[i]) == np.array(pop[j]))
-            if sim >= threshold:
-                G.add_edge(i, j, weight=sim)
-    return G
