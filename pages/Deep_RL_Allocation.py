@@ -28,9 +28,10 @@ else:
     df_raw["Student_Name"] = df_raw["Student_ID"].astype(str)
 
 # ── 3. Parameter controls ───────────────────────────────────────────
-cap_col, cls_col = st.columns(2)
-capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
-num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+#cap_col, cls_col = st.columns(1)
+#capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
+#num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+num_classrooms = st.slider("Number of classrooms", 2, 10, 6, 1)
 
 # ── 4. Load DQN model (cached in session) ───────────────────────────
 if "dqn_model" not in st.session_state:
@@ -41,7 +42,7 @@ with st.spinner("Allocating with DQN…"):
         df_raw,
         st.session_state.dqn_model,
         num_classrooms=num_classrooms,
-        max_capacity=capacity,
+        #max_capacity=capacity,
     )
     
     # Ensure Student_Name is restored (in case allocator strips it)
@@ -112,9 +113,9 @@ with tab_vis:
     # Compute counts
     reason_counts = (
         assigned_df["Reason"]
-          .value_counts()
-          .reset_index(name="Count")
-          .rename(columns={"index": "Reason"})
+            .value_counts()
+            .reset_index(name="Count")
+            .rename(columns={"index": "Reason"})
     )
     # Map each raw reason into a broader category by keyword matching
     def map_reason_category(reason: str) -> str:
