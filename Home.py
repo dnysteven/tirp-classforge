@@ -1,6 +1,6 @@
 # Home.py
 import os, streamlit as st, pandas as pd
-from utils.ui_utils import apply_global_styles
+from utils.ui_utils import apply_global_styles, render_footer
 
 # ────────────────────────────────────────────────────────────────────
 # 0.  AI LLM Agent  (LangChain + Ollama)
@@ -99,5 +99,7 @@ else:
 if df_uploaded is not None:
     st.markdown("---")
     st.markdown("## Select compare models to check its performance")
-    if st.button("🔀 Compare multiple models"):
+    if st.button("Compare multiple models"):
         st.switch_page("pages/Compare_Models.py")
+
+render_footer()

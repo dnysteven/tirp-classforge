@@ -5,26 +5,28 @@
 import streamlit as st
 import pandas as pd
 from utils.ga_utils import load_and_scale, simulate_graph, setup_deap, run_ga
-from utils.ui_utils import apply_global_styles
+from utils.ui_utils import apply_global_styles, render_footer
 from utils.cpsat_utils import to_csv_bytes  # existing helper for CSV download
 import networkx as nx
 import plotly.graph_objects as go
 
 st.set_page_config(page_title="GA-Powered Classroom Allocation", layout="wide")
 apply_global_styles()
-st.title("🧬 ClassForge: Genetic-Algorithm Classroom Allocation")
+st.title("ClassForge: Genetic-Algorithm Classroom Allocation")
+render_footer()
 
 # ---------------------------------------------------------------
 # 1. DATA SOURCE
 # ---------------------------------------------------------------
-if "uploaded_df" in st.session_state:
-    df_raw = st.session_state.uploaded_df.copy()
+if "uploaded_df" not in st.session_state:
+    st.session_state["redirect_warning"] = True
+    if hasattr(st, "switch_page"):
+        st.switch_page("Home.py")
+    else:
+        st.experimental_set_query_params(page="Home.py")
+        st.experimental_rerun()
 else:
-    upl = st.file_uploader("📂 Upload student CSV", type="csv")
-    if not upl:
-        st.warning("Please upload a CSV file first (or return to Home).")
-        st.stop()
-    df_raw = pd.read_csv(upl)
+    df_raw = st.session_state.uploaded_df.copy()
 
 # ---------------------------------------------------------------
 # 2. CONTROLS  (formerly sidebar)  – two rows
@@ -60,10 +62,10 @@ print(f"[DEBUG] Total disrespect edges in graph: {total_disrespect}")
 # ---------------------------------------------------------------
 # 4. RUN GA & TABS
 # ---------------------------------------------------------------
-tab_roster, tab_vis = st.tabs(["📋 Class Rosters", "📊 Visualisation"])
+tab_roster, tab_vis = st.tabs(["Class Rosters", "Visualisation"])
 
 with tab_roster:
-    if st.button("🚀 Run Genetic Algorithm"):
+    if st.button("Run Genetic Algorithm"):
         st.info("Running GA… this can take a few seconds.")
         toolbox = setup_deap(
             df_scaled, G,
@@ -104,7 +106,7 @@ with tab_roster:
         st.session_state.ga_df_edit = df_edit
 
         # Per-class tables
-        st.markdown("#### 🗂️  Class-by-Class View")
+        st.markdown("#### Class-by-Class View")
         cols_tbl = st.columns(2)
         for idx, (cls, sub) in enumerate(df_edit.groupby("Classroom"), 1):
             with cols_tbl[(idx - 1) % 2]:
@@ -138,10 +140,10 @@ with tab_vis:
             .rename(columns={"index": "Classroom", "count": "Students"})
         )
         
-        st.subheader("💗 Wellbeing Composite by Class")
+        st.subheader("Wellbeing Composite by Class")
         st.bar_chart(class_counts, x="Classroom", y="Students", use_container_width=True)
 
-        st.subheader("🌐 Full Student Network")
+        st.subheader("Full Student Network")
         def plot_student_network(G: nx.Graph, df: pd.DataFrame) -> go.Figure:
             pos = nx.spring_layout(G, seed=42)
 
@@ -212,7 +214,7 @@ with tab_vis:
             fig_full = plot_student_network(G, st.session_state.ga_df_edit.rename(columns={"Classroom": "Assigned_Class"}))
             st.plotly_chart(fig_full, use_container_width=True)
 
-        st.subheader("🔍 Social Subgraphs by Class")
+        st.subheader("Social Subgraphs by Class")
         classes = sorted(st.session_state.ga_df_edit["Classroom"].unique())
         for cls in classes:
             st.markdown(f"---\n**Class {cls}**")

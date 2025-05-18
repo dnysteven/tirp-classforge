@@ -9,7 +9,7 @@ from sklearn.cluster        import KMeans
 from ortools.sat.python     import cp_model
 from utils.deep_rl_utils    import load_model, allocate_students
 
-from utils.ui_utils import apply_global_styles
+from utils.ui_utils import apply_global_styles, render_footer
 from utils.compare_utils import (
     ENGINE_IDS, run_comparison,
     friend_conflict_counts, _ENGINE_FUNCS as ENGINE_FUNCS
@@ -49,7 +49,8 @@ df_raw = st.session_state.uploaded_df
 
 st.set_page_config(page_title="Compare Allocation Models", layout="wide")
 apply_global_styles()
-st.title("🔀 Compare Two Class Allocation Models")
+st.title("Class Forge: Compare Two Class Allocation Models")
+render_footer()
 
 # ─────────────────────────────────────────────────────────
 # 2.  Register / embed allocators (CP-SAT, GNN, Deep-RL)
@@ -157,7 +158,7 @@ with s2:
 with s3:
     seed  = st.number_input("Seed", 0, 9999, 42)
 
-if not st.button("🚀 Compare"):
+if not st.button("Compare Allocation Model"):
     st.stop()
 
 sample,G,pos,results,errors=run_comparison(df_raw,model_ids,frac,max_n,seed)
@@ -199,7 +200,7 @@ for (mid,df_alloc),sp in zip(results.items(),cols):
             st.caption(f"👥 **{len(nodes)}** students  |  ✅ {f_in} friendship  |  ❌ {d_in} conflicts")
 
 # LLM explanation
-ctx="\n".join(f"{n}: friends {m['friends']}, conflicts {m['conflicts']}, avg size {m['avg']:.1f}"
+ctx="\n".join(f"{n}: friends {m['friends']}, conflicts {m['conflicts']}, avg size {m['avg']:.0f}"
             for n,m in metrics.items())
-st.markdown("---"); st.subheader("🤖 Model comparison explanation")
+st.markdown("---"); st.subheader("Model comparison explanation")
 st.info(llm_compare(ctx))

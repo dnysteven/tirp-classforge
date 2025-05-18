@@ -8,9 +8,9 @@ from pathlib import Path
 # ---- public mapping used by Home & Compare pages -------------
 ENGINE_IDS = {
     "CP_SAT":   "CP-SAT",
-    "GNN":      "GNN + K-Means",
+    "GNN":      "GNN",
     "GA":       "Genetic Algorithm",
-    "DEEP_RL":  "Deep-RL (DQN)",
+    "DEEP_RL":  "Deep-RL",
     "SCENARIO": "Scenario-Based AI",
 }
 

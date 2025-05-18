@@ -14,9 +14,11 @@ from utils.cpsat_utils import (
     to_csv_bytes
 )
 from utils.compare_utils import build_social_graph
+from utils.ui_utils import render_footer
 
 st.set_page_config(page_title="CP-SAT Classroom Optimiser", layout="wide")
-st.title("🎯 CP-SAT Constraint Optimisation")
+st.title("ClassForge: CP-SAT Constraint Optimisation Classroom Allocation")
+render_footer()
 
 # — 1) Redirect if no data in session state —
 if "uploaded_df" not in st.session_state:
@@ -109,7 +111,7 @@ if "alloc_df" not in st.session_state:
 # ==== 8️⃣ Once allocated, show Rosters & Visualizations ====
 df = st.session_state.alloc_df
 
-tab_rosters, tab_viz = st.tabs(["Class Rosters","Visualizations"])
+tab_rosters, tab_viz = st.tabs(["Class Rosters","Visualisations"])
 
 with tab_rosters:
     st.markdown("### Editable Class Rosters")
@@ -133,7 +135,7 @@ with tab_rosters:
                 hide_index=True, use_container_width=True
             )
     st.download_button(
-        "Download full roster CSV",
+        "📥 Download full roster CSV",
         to_csv_bytes(df),
         file_name="cpsat_allocation.csv",
         mime="text/csv"
@@ -283,4 +285,3 @@ with tab_viz:
         "Use this graph and these numbers to quickly see how connected your students are, "
         "and where you might need to foster more friendships or address conflicts."
     )
-
