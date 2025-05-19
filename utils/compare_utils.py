@@ -8,9 +8,9 @@ from pathlib import Path
 # ---- public mapping used by Home & Compare pages -------------
 ENGINE_IDS = {
     "CP_SAT":   "CP-SAT",
-    "GNN":      "GNN + K-Means",
+    "GNN":      "GNN",
     "GA":       "Genetic Algorithm",
-    "DEEP_RL":  "Deep-RL (DQN)",
+    "DEEP_RL":  "Deep-RL",
     "SCENARIO": "Scenario-Based AI",
 }
 
@@ -143,13 +143,6 @@ def _ga(df: pd.DataFrame) -> pd.DataFrame:
     tb = setup_deap(scaled, simulate_graph(scaled), 6, (0.33,0.33,0.34))
     best,_ = run_ga(tb, pop_size=40, gens=10)
     return pd.DataFrame({"Student_ID": scaled["Student_ID"], "Classroom": np.array(best)+1})
-
-# def _deep_rl(df: pd.DataFrame) -> pd.DataFrame:
-#     model = load_model(Path("models") / "deep_rl_model.pth", state_size=15)
-#     assigned_df = allocate_students(df, model, num_classrooms=6, max_capacity=20)
-#     if "Assigned_Classroom" in assigned_df.columns:
-#         assigned_df = assigned_df.rename(columns={"Assigned_Classroom": "Classroom"})
-#     return assigned_df[["Student_ID", "Classroom"]]
 
 def _deep_rl(df: pd.DataFrame) -> pd.DataFrame:
     model = load_model(Path("models") / "deep_rl_model.pth", state_size=15)

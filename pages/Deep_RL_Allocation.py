@@ -5,9 +5,11 @@ from utils.cpsat_utils   import to_csv_bytes
 from langchain_community.llms import Ollama
 from langchain.prompts import ChatPromptTemplate
 import textwrap
+from utils.ui_utils import render_footer
 
 st.set_page_config(page_title="Deep-RL Allocation", layout="wide")
-st.title("🤖 Deep-RL (DQN) Classroom Allocation")
+st.title("ClassForge: Deep-RL Algorithm Classroom Allocation")
+render_footer()
 
 # ── 1. Get dataframe (from session or local upload) ─────────────────
 if "uploaded_df" not in st.session_state:
@@ -31,10 +33,9 @@ else:
     df_raw["Student_Name"] = df_raw["Student_ID"].astype(str)
 
 # ── 3. Parameter controls ───────────────────────────────────────────
-#cap_col, cls_col = st.columns(2)
-#capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
-#num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
-num_classrooms = st.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+cap_col, cls_col = st.columns(2)
+capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
+num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
 
 # ── 4. Load DQN model (cached in session) ───────────────────────────
 if "dqn_model" not in st.session_state:
@@ -45,7 +46,7 @@ with st.spinner("Allocating with DQN…"):
         df_raw,
         st.session_state.dqn_model,
         num_classrooms=num_classrooms,
-        #max_capacity=capacity,
+        max_capacity=capacity,
     )
     
     # Ensure Student_Name is restored (in case allocator strips it)
@@ -63,7 +64,7 @@ if "Student_Name" in assigned_df.columns:
 assigned_df = assigned_df[front + [c for c in assigned_df.columns if c not in front]]
 
 # ── 5. Tabs: rosters first, visualisations second ───────────────────
-tab_roster, tab_vis = st.tabs(["Class rosters", "Visualisations"])
+tab_roster, tab_vis = st.tabs(["Class Rosters", "Visualisations"])
 
 # ---------- Class rosters tab --------------------------------------
 with tab_roster:
@@ -97,7 +98,7 @@ with tab_roster:
 
 # ---------- Visualisations tab --------------------------------------
 with tab_vis:
-    st.markdown(f"#### 🏷 Number of Classrooms: `{num_classrooms}`")
+    st.markdown(f"#### Number of Classrooms: `{num_classrooms}`")
 
     # Students per Classroom
     counts = (
@@ -108,19 +109,17 @@ with tab_vis:
     )
     counts.columns = ["Classroom", "Students"]
 
-    st.markdown("### 📊 Students per Classroom")
+    st.markdown("### Students per Classroom")
     st.bar_chart(counts, x="Classroom", y="Students", use_container_width=True)
 
     # Allocation Reasons
-        # Allocation Reasons
-    st.markdown("### 📝 Allocation Reasons (by Category)")
-
+    st.markdown("### Allocation Reasons (by Category)")
     # Compute counts
     reason_counts = (
         assigned_df["Reason"]
-          .value_counts()
-          .reset_index(name="Count")
-          .rename(columns={"index": "Reason"})
+            .value_counts()
+            .reset_index(name="Count")
+            .rename(columns={"index": "Reason"})
     )
     # Map each raw reason into a broader category by keyword matching
     def map_reason_category(reason: str) -> str:

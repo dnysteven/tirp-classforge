@@ -1,6 +1,6 @@
-# Home.py – upload CSV ▸ choose allocation engine ▸ compare engines
+# Home.py
 import os, streamlit as st, pandas as pd
-from utils.ui_utils import apply_global_styles
+from utils.ui_utils import apply_global_styles, render_footer
 
 # ────────────────────────────────────────────────────────────────────
 # 0.  AI LLM Agent  (LangChain + Ollama)
@@ -28,7 +28,6 @@ def llm_explain(criteria: str) -> str:
         chain = prompt | llm
         return chain.invoke({"criteria": criteria}).strip()
     except Exception:
-        # Silent fallback if Ollama is offline
         return f"Run this allocation model if you want to create class roster based on {criteria}"
 
 # ────────────────────────────────────────────────────────────────────
@@ -95,10 +94,12 @@ else:
     st.info("⬆️ Upload a CSV to unlock engine buttons.")
 
 # ────────────────────────────────────────────────────────────────────
-# 4.  Model comparer (NEW)
+# 4.  Model comparer
 # ────────────────────────────────────────────────────────────────────
 if df_uploaded is not None:
     st.markdown("---")
     st.markdown("## Select compare models to check its performance")
-    if st.button("🔀 Compare multiple models"):
+    if st.button("Compare multiple models"):
         st.switch_page("pages/Compare_Models.py")
+
+render_footer()

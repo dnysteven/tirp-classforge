@@ -1,9 +1,11 @@
 import streamlit as st, pandas as pd, plotly.express as px
 from utils.gnn_utils   import allocate, REQUIRED_COLS
 from utils.cpsat_utils import to_csv_bytes
+from utils.ui_utils    import render_footer
 
 st.set_page_config(page_title="GNN Classroom Allocator", layout="wide")
-st.title("📚 GNN‑based Classroom Allocation")
+st.title("ClassForge: GNN Algorithm Classroom Allocation")
+render_footer()
 
 # ── get dataframe ────────────────────────────────────────────────────
 if "uploaded_df" not in st.session_state:
@@ -70,7 +72,7 @@ with tab_roster:
 											"gnn_group_allocation.csv","text/csv")
 
 with tab_vis:
-    st.markdown(f"#### 🏷 Number of Classrooms: `{num_clusters}`")
+    st.markdown(f"#### Number of Classrooms: `{num_clusters}`")
     st.info("""
     Each student was represented by a GNN-based embedding using the weighted combination
     of the 5 selected features. Then, KMeans clustering grouped these students into distinct

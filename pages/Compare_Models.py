@@ -3,13 +3,13 @@
 import streamlit as st, pandas as pd, numpy as np, plotly.graph_objects as go
 import torch, torch.nn.functional as F, joblib
 from pathlib import Path
-from torch_geometric.data import Data
-from torch_geometric.nn   import GCNConv
-from sklearn.cluster      import KMeans
-from ortools.sat.python   import cp_model
-from utils.deep_rl_utils import load_model, allocate_students
+from torch_geometric.data   import Data
+from torch_geometric.nn     import GCNConv
+from sklearn.cluster        import KMeans
+from ortools.sat.python     import cp_model
+from utils.deep_rl_utils    import load_model, allocate_students
 
-from utils.ui_utils import apply_global_styles
+from utils.ui_utils import apply_global_styles, render_footer
 from utils.compare_utils import (
     ENGINE_IDS, run_comparison,
     friend_conflict_counts, _ENGINE_FUNCS as ENGINE_FUNCS
@@ -28,7 +28,7 @@ def llm_compare(ctx: str) -> str:
             "conflicts kept, and average class size.\n\n{ctx}, "
             "Assume explanation for general audience with no background in AI or SNA "
             "Make sure the number comparison are correct "
-            "Finally, choose one better for fostering harmony in class"
+            "Finally, you MUST choose one better for fostering harmony in class"
         )
         return (prompt | Ollama(model="mistral")).invoke({"ctx": ctx}).strip()
     except Exception:
@@ -38,14 +38,19 @@ def llm_compare(ctx: str) -> str:
 # 1.  Access CSV loaded on Home; block page if missing
 # ─────────────────────────────────────────────────────────
 if "uploaded_df" not in st.session_state:
-    st.warning("⬅️ Please upload a CSV on **Home** before opening the comparison page.")
-    st.stop()
+    st.session_state["redirect_warning"] = True
+    if hasattr(st, "switch_page"):
+        st.switch_page("Home.py")
+    else:
+        st.experimental_set_query_params(page="Home.py")
+        st.stop()
 
 df_raw = st.session_state.uploaded_df
 
 st.set_page_config(page_title="Compare Allocation Models", layout="wide")
 apply_global_styles()
-st.title("🔀 Compare Two Class Allocation Models")
+st.title("Class Forge: Compare Two Class Allocation Models")
+render_footer()
 
 # ─────────────────────────────────────────────────────────
 # 2.  Register / embed allocators (CP-SAT, GNN, Deep-RL)
@@ -64,7 +69,12 @@ def compute_fitness(df):
 def _greedy(fit,sids,k,cap):
     cnt=[0]*k; tot=[0]*k; out={}
     for sid,f in sorted(zip(sids,fit),key=lambda x:x[1]):
-        room=min([c for c in range(k) if cnt[c]<cap],key=lambda c:tot[c])
+        available = [c for c in range(k) if cnt[c]<cap]
+        if available:
+            room = min(available, key=lambda c:tot[c])
+        else:
+            # fallback: assign to least loaded class even if over cap
+            room = min(range(k), key=lambda c: tot[c])
         out[sid]=room; cnt[room]+=1; tot[room]+=f
     return out
 def solve_constraints(df,k,cap):
@@ -128,7 +138,7 @@ def dr_alloc(df, k=6, cap=30):
 ENGINE_FUNCS["DEEP_RL"]=dr_alloc
 
 # ─────────────────────────────────────────────────────────
-# 3.  UI – pick exactly TWO engines
+# 3.  Streamlit UI
 # ─────────────────────────────────────────────────────────
 engine_labels=list(ENGINE_IDS.values())
 colA,colB=st.columns(2)
@@ -148,16 +158,14 @@ with s2:
 with s3:
     seed  = st.number_input("Seed", 0, 9999, 42)
 
-if not st.button("🚀 Compare"):
+if not st.button("Compare Allocation Model"):
     st.stop()
 
 sample,G,pos,results,errors=run_comparison(df_raw,model_ids,frac,max_n,seed)
 for mid,msg in errors.items(): st.error(f"{ENGINE_IDS[mid]} failed: {msg}")
 if len(results)<2: st.error("Both models must succeed."); st.stop()
 
-# ─────────────────────────────────────────────────────────
-# 4.  Visualise side-by-side & gather metrics
-# ─────────────────────────────────────────────────────────
+# Visualise side-by-side & gather metrics
 metrics={}
 cols=st.columns(2)
 for (mid,df_alloc),sp in zip(results.items(),cols):
@@ -189,12 +197,10 @@ for (mid,df_alloc),sp in zip(results.items(),cols):
                             hovermode="closest",
                             showlegend=True))
             st.plotly_chart(fig,use_container_width=True)
-            st.caption(f"👥 **{len(nodes)}** students  |  ✅ {f_in} friends kept  |  ❌ {d_in} conflicts")
+            st.caption(f"👥 **{len(nodes)}** students  |  ✅ {f_in} friendship  |  ❌ {d_in} conflicts")
 
-# ─────────────────────────────────────────────────────────
-# 5.  LLM explanation in st.info
-# ─────────────────────────────────────────────────────────
-ctx="\n".join(f"{n}: friends {m['friends']}, conflicts {m['conflicts']}, avg size {m['avg']:.1f}"
+# LLM explanation
+ctx="\n".join(f"{n}: friends {m['friends']}, conflicts {m['conflicts']}, avg size {m['avg']:.0f}"
             for n,m in metrics.items())
-st.markdown("---"); st.subheader("🤖 Model comparison explanation")
+st.markdown("---"); st.subheader("Model comparison explanation")
 st.info(llm_compare(ctx))

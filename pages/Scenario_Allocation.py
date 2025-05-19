@@ -13,30 +13,30 @@ from utils.scenario_utils import (
     allocate_to_classrooms,
     SCENARIO_FEATURES,
 )
-from utils.cpsat_utils import to_csv_bytes  # reuse existing helper
-from utils.ui_utils import apply_global_styles
+from utils.cpsat_utils import to_csv_bytes
+from utils.ui_utils import apply_global_styles, render_footer
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # -------------------------- PAGE SETUP --------------------------
-st.set_page_config(page_title="ClassForge Scenario Dashboard", layout="wide")
+st.set_page_config(page_title="ClassForge Scenario-Based Allocation", layout="wide")
 apply_global_styles()
-st.title("🎯 ClassForge: Scenario‑Based AI Modelling Dashboard")
+st.title("ClassForge: Scenario-Based AI Modelling Classroom Allocation")
+render_footer()
 
 # ----------------------- FILE SOURCE ----------------------------
-if "uploaded_df" in st.session_state:
-    data = st.session_state.uploaded_df.copy()
+if "uploaded_df" not in st.session_state:
+    st.session_state["redirect_warning"] = True
+    if hasattr(st, "switch_page"):
+        st.switch_page("Home.py")
+    else:
+        st.experimental_set_query_params(page="Home.py")
+        st.experimental_rerun()
 else:
-    upl = st.file_uploader("📂 Upload CSV file", type=["csv"])
-    if not upl:
-        st.warning("⚠️ Please upload a CSV file to begin.")
-        st.stop()
-    data = pd.read_csv(upl)
-
-st.success("✅ Dataset Loaded Successfully!")
+    df_raw = st.session_state.uploaded_df.copy()
 
 # --------------------- CONTROLS (two rows) -----------------------
-st.markdown("### ⚙️ Allocation Parameters")
+st.markdown("### Allocation Parameters")
 
 # Row 1 – Scenario settings
 c1, c2 = st.columns(2)
@@ -54,7 +54,7 @@ with c4:
 
 # ------------------------ RUN CLUSTERING ------------------------
 data, group_labels, group_meanings = run_scenario_clustering(
-    data, scenario_type, num_clusters
+    df_raw, scenario_type, num_clusters
 )
 
 # Prepare summary table (used in Class Roster tab first)
@@ -75,14 +75,14 @@ elif "Name" not in allocated_df.columns:
     allocated_df["Name"] = allocated_df.get("Student_ID", "").astype(str)
 
 # ------------------------ TABS ------------------------
-tab_roster, tab_visual = st.tabs(["📋 Class Rosters", "📊 Visualisation"])
+tab_roster, tab_visual = st.tabs(["Class Rosters", "Visualisation"])
 
 # ------------------------ CLASS ROSTERS TAB ------------------------
 with tab_roster:
-    st.markdown(f"### 📌 {scenario_type} – Scenario Group Summary")
+    st.markdown(f"### 📌 {scenario_type} - Scenario Group Summary")
     st.dataframe(summary_table)
 
-    st.markdown("### 👥 Classroom Rosters")
+    st.markdown("### Classroom Rosters")
 
     total_students = len(data)
     st.write(f"Total Students: {total_students}")
@@ -109,7 +109,7 @@ with tab_roster:
     st.session_state["scenario_edited_df"] = edited_df.copy()
 
     # ---------- per‑class tables ----------
-    st.markdown("#### 🗂️  Class‑by‑Class View")
+    st.markdown("#### Class-by-Class View")
     cols_tbl = st.columns(2)
     for idx, (cls, sub) in enumerate(edited_df.groupby("Classroom"), 1):
         with cols_tbl[(idx - 1) % 2]:
@@ -130,7 +130,7 @@ with tab_roster:
 # ------------------------ VISUALISATION TAB ------------------------
 with tab_visual:
     # ------------------ HEATMAP ----------------------
-    st.markdown("### 🧊 Feature Averages by Scenario Group")
+    st.markdown("### Feature Averages by Scenario Group")
     try:
         heatmap_data = data.groupby("Group_Name")[SCENARIO_FEATURES[scenario_type]].mean()
         fig, ax = plt.subplots(figsize=(14, 6))
@@ -140,7 +140,7 @@ with tab_visual:
         st.warning("⚠️ Heatmap could not be displayed due to incompatible data.")
 
     # -------------------- TREND COMPARISON ---------------------
-    st.markdown("### 📈 Feature Trend Comparison")
+    st.markdown("### Feature Trend Comparison")
     features_to_compare = st.multiselect(
         "Select Features to Compare",
         options=SCENARIO_FEATURES[scenario_type]
@@ -158,6 +158,3 @@ with tab_visual:
                 color_discrete_sequence=px.colors.sequential.Blues
             )
             st.plotly_chart(bar, use_container_width=True)
-
-st.markdown("---")
-st.caption("💡 ClassForge - Scenario‑Based Allocation Tool | AI‑Powered 2025")
