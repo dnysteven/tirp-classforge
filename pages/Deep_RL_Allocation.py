@@ -2,6 +2,9 @@
 import streamlit as st, pandas as pd, altair as alt
 from utils.deep_rl_utils import load_model, allocate_students
 from utils.cpsat_utils   import to_csv_bytes
+from langchain_community.llms import Ollama
+from langchain.prompts import ChatPromptTemplate
+import textwrap
 
 st.set_page_config(page_title="Deep-RL Allocation", layout="wide")
 st.title("🤖 Deep-RL (DQN) Classroom Allocation")
@@ -28,9 +31,10 @@ else:
     df_raw["Student_Name"] = df_raw["Student_ID"].astype(str)
 
 # ── 3. Parameter controls ───────────────────────────────────────────
-cap_col, cls_col = st.columns(2)
-capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
-num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+#cap_col, cls_col = st.columns(2)
+#capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
+#num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+num_classrooms = st.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
 
 # ── 4. Load DQN model (cached in session) ───────────────────────────
 if "dqn_model" not in st.session_state:
@@ -41,7 +45,7 @@ with st.spinner("Allocating with DQN…"):
         df_raw,
         st.session_state.dqn_model,
         num_classrooms=num_classrooms,
-        max_capacity=capacity,
+        #max_capacity=capacity,
     )
     
     # Ensure Student_Name is restored (in case allocator strips it)
@@ -108,7 +112,9 @@ with tab_vis:
     st.bar_chart(counts, x="Classroom", y="Students", use_container_width=True)
 
     # Allocation Reasons
+        # Allocation Reasons
     st.markdown("### 📝 Allocation Reasons (by Category)")
+
     # Compute counts
     reason_counts = (
         assigned_df["Reason"]
@@ -121,22 +127,18 @@ with tab_vis:
         rl = reason.lower()
         if "profile" in rl:
             return "Skill Balance"
-        # anything about disrespect, bullying, stress or satisfaction → Wellbeing
         elif any(term in rl for term in ["disrespect", "bullied", "stress", "satisfaction"]):
             return "Wellbeing"
-        # friendship cues → Social Fit
         elif "friend" in rl:
             return "Social Fit"
-        # high performers, mentors, leaders, challenges → Performance
         elif any(term in rl for term in ["performer", "mentor", "leadership", "challenge"]):
             return "Performance"
-        # fall-back bucket
         else:
             return "Other"
 
     reason_counts["Category"] = reason_counts["Reason"].apply(map_reason_category)
 
-    # Sort descending
+     # Sort descending
     reason_counts = reason_counts.sort_values("Count", ascending=False)
 
     # Build Altair chart
@@ -167,3 +169,32 @@ with tab_vis:
           .configure_axis(grid=False)
     )
     st.altair_chart(chart, use_container_width=True)
+
+    # Use LangChain + Ollama for explanation 
+    category_summary = reason_counts.groupby("Category")["Count"].sum().reset_index()
+    summary_lines = [
+        f"- {row['Category']}: {row['Count']} students"
+        for _, row in category_summary.iterrows()
+    ]
+    summary = (
+        "Classroom allocation reasons (by category):\n" +
+        "\n".join(summary_lines) +
+        "\n\nDetails:\n" +
+        reason_counts.to_string(index=False)
+    )
+
+    llm = Ollama(model="mistral")  # Change model name if you want
+    prompt = ChatPromptTemplate.from_template(
+        "Summarize the following allocation reasons for a school leader, using concise bullet points for each main category, "
+        "and make sure the explanation is easy to read and highlights why each category matters for students:\n\n{summary}"
+    )
+    chain = prompt | llm
+    response = chain.invoke({"summary": summary})
+
+    wrapped = textwrap.fill(response, width=100)
+
+    st.markdown("#### 🤖 AI Explanation of Allocation Reasons")
+    
+    # Display the response in markdown (bullets)
+    st.markdown(response)
+
