@@ -91,7 +91,7 @@ if df_uploaded is not None:
 
                 st.info(llm_explain(criteria))
 else:
-    st.info("⬆️ Upload a CSV to unlock engine buttons.")
+    st.info("⬆️ Upload a CSV to unlock allocation models.")
 
 # ────────────────────────────────────────────────────────────────────
 # 4.  Model comparer

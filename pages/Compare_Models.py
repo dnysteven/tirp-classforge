@@ -47,7 +47,7 @@ if "uploaded_df" not in st.session_state:
 
 df_raw = st.session_state.uploaded_df
 
-st.set_page_config(page_title="Compare Allocation Models", layout="wide")
+st.set_page_config(page_title="Compare Classroom Allocation Models", layout="wide")
 apply_global_styles()
 st.title("Class Forge: Compare Two Class Allocation Models")
 render_footer()

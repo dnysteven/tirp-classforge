@@ -35,9 +35,9 @@ row1c1, row1c2, row1c3 = st.columns(3)
 with row1c1:
     K = st.number_input("Number of classes", 2, 10, 4)
 with row1c2:
-    pop = st.slider("Population size", 2, 100, 20)
+    pop = st.slider("Population size", 2, 100, 10)
 with row1c3:
-    gens = st.slider("Generations", 1, 50, 5)
+    gens = st.slider("Generations", 1, 50, 1)
 
 row2c1, row2c2, row2c3 = st.columns(3)
 with row2c1:
@@ -132,21 +132,43 @@ with tab_roster:
 # ---------------------------------------------------------------
 with tab_vis:
     if "ga_df_edit" in st.session_state:
-        class_counts = (
-            st.session_state.ga_df_edit["Classroom"]
-            .value_counts()
-            .sort_index()
-            .reset_index()
-            .rename(columns={"index": "Classroom", "count": "Students"})
-        )
-        
+
+        # === INSERTED SECTION ===
+        # Wellbeing Composite Bar Chart and Summary
         st.subheader("Wellbeing Composite by Class")
-        st.bar_chart(class_counts, x="Classroom", y="Students", use_container_width=True)
+        wellbeing_cols = [
+            "Stress_Level (1-10)", "Sleep_Hours_per_Night", "life_satisfaction",
+            "feels_nervous_frequency", "feels_depressed_frequency",
+            "effort_exhaustion_level", "worthless_feeling_frequency"
+        ]
+        if all(col in df_scaled.columns for col in wellbeing_cols):
+            df_wb = df_scaled[["Student_ID"] + wellbeing_cols].copy()
+            df_wb["Wellbeing_Composite"] = df_wb[wellbeing_cols].sum(axis=1)
+
+            wb_avg = (
+                st.session_state.ga_df_edit
+                .merge(df_wb[["Student_ID", "Wellbeing_Composite"]], on="Student_ID")
+                .groupby("Classroom")["Wellbeing_Composite"]
+                .mean()
+            )
+            st.bar_chart(wb_avg)
+
+            min_cls = wb_avg.idxmin()
+            max_cls = wb_avg.idxmax()
+            min_val = wb_avg[min_cls]
+            max_val = wb_avg[max_cls]
+            spread = max_val - min_val
+
+            st.markdown(
+                f"**Wellbeing Summary:** Class **{max_cls}** has highest average "
+                f"wellbeing ({max_val:.2f}), Class **{min_cls}** lowest ({min_val:.2f}). "
+                f"Spread **{spread:.2f}** means "
+                f"{'well-distributed wellbeing.' if spread < 0.1 else 'consider adjusting weights.'}"
+            )
 
         st.subheader("Full Student Network")
         def plot_student_network(G: nx.Graph, df: pd.DataFrame) -> go.Figure:
             pos = nx.spring_layout(G, seed=42)
-
             edge_traces = []
             colors = {"friend": "green", "disrespect": "red"}
 
@@ -168,7 +190,6 @@ with tab_vis:
                     name=rel_type.capitalize()
                 ))
 
-            # Draw nodes
             node_x = []
             node_y = []
             node_text = []
@@ -201,13 +222,13 @@ with tab_vis:
         def plot_class_subgraph(G: nx.Graph, df: pd.DataFrame, class_label: int) -> go.Figure:
             ids = df[df["Assigned_Class"] == class_label]["Student_ID"].tolist()
             subG = G.subgraph(ids)
-            
+
             intra_conflicts = sum(
                 1 for _, _, d in subG.edges(data=True)
                 if d.get("relation_type") == "disrespect"
             )
-            print(f"[DEBUG] Class {cls} – Intra-class conflicts: {intra_conflicts}")
-            
+            print(f"[DEBUG] Class {class_label} – Intra-class conflicts: {intra_conflicts}")
+
             return plot_student_network(subG, df)
 
         if st.checkbox("Show full network"):

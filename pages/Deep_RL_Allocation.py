@@ -33,9 +33,7 @@ else:
     df_raw["Student_Name"] = df_raw["Student_ID"].astype(str)
 
 # ── 3. Parameter controls ───────────────────────────────────────────
-cap_col, cls_col = st.columns(2)
-capacity = cap_col.number_input("Capacity per class", 1, 40, 20, 1)
-num_classrooms = cls_col.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
+num_classrooms = st.slider("Number of classrooms (≤10)", 2, 10, 10, 1)
 
 # ── 4. Load DQN model (cached in session) ───────────────────────────
 if "dqn_model" not in st.session_state:
@@ -45,8 +43,7 @@ with st.spinner("Allocating with DQN…"):
     assigned_df = allocate_students(
         df_raw,
         st.session_state.dqn_model,
-        num_classrooms=num_classrooms,
-        max_capacity=capacity,
+        num_classrooms=num_classrooms
     )
     
     # Ensure Student_Name is restored (in case allocator strips it)
@@ -137,35 +134,35 @@ with tab_vis:
 
     reason_counts["Category"] = reason_counts["Reason"].apply(map_reason_category)
 
-     # Sort descending
+    # Sort descending
     reason_counts = reason_counts.sort_values("Count", ascending=False)
 
     # Build Altair chart
     chart = (
         alt.Chart(reason_counts)
-          .mark_bar(cornerRadiusTopLeft=3, cornerRadiusBottomLeft=3)
-          .encode(
-             y=alt.Y(
-                 "Reason:N", sort="-x", title=None,
-                 axis=alt.Axis(labelFontSize=12, labelLimit=300)
-             ),
-             x=alt.X(
-                 "Count:Q", title="Number of Students",
-                 axis=alt.Axis(labelFontSize=12, titleFontSize=14)
-             ),
-             color=alt.Color(
-                 "Category:N", title="Reason Category",
-                 legend=alt.Legend(orient="right", labelFontSize=12, titleFontSize=14)
-             ),
-             tooltip=[
-                 alt.Tooltip("Reason:N", title="Reason"),
-                 alt.Tooltip("Count:Q", title="Count"),
-                 alt.Tooltip("Category:N", title="Category")
-             ]
-          )
-          .properties(height=600, width=800)
-          .configure_view(strokeOpacity=0)
-          .configure_axis(grid=False)
+        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusBottomLeft=3)
+        .encode(
+            y=alt.Y(
+                "Reason:N", sort="-x", title=None,
+                axis=alt.Axis(labelFontSize=12, labelLimit=300)
+            ),
+            x=alt.X(
+                "Count:Q", title="Number of Students",
+                axis=alt.Axis(labelFontSize=12, titleFontSize=14)
+            ),
+            color=alt.Color(
+                "Category:N", title="Reason Category",
+                legend=alt.Legend(orient="right", labelFontSize=12, titleFontSize=14)
+            ),
+            tooltip=[
+                alt.Tooltip("Reason:N", title="Reason"),
+                alt.Tooltip("Count:Q", title="Count"),
+                alt.Tooltip("Category:N", title="Category")
+            ]
+        )
+        .properties(height=600, width=800)
+        .configure_view(strokeOpacity=0)
+        .configure_axis(grid=False)
     )
     st.altair_chart(chart, use_container_width=True)
 
@@ -192,7 +189,7 @@ with tab_vis:
 
     wrapped = textwrap.fill(response, width=100)
 
-    st.markdown("#### 🤖 AI Explanation of Allocation Reasons")
+    st.markdown("#### AI Explanation of Allocation Reasons")
     
     # Display the response in markdown (bullets)
     st.markdown(response)
