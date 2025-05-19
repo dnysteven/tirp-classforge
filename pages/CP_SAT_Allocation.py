@@ -170,11 +170,11 @@ with tab_viz:
     )
     base = (
         alt.Chart(pd.DataFrame([{"y": before}]))
-        .mark_rule(color="black", strokeDash=[4,2])
+        .mark_rule(color="yellow", strokeDash=[4,2])
         .encode(y="y:Q")
     )
     st.altair_chart(chart2 + base, use_container_width=True)
-    st.caption(f"Black dashed line = overall bullied rate before allocation ({before:.1f}%)")
+    st.caption(f"Yellow dashed line = overall bullied rate before allocation ({before:.1f}%)")
 
     # 3) Academic Scores
     st.markdown("#### Academic Score Distribution by Class")

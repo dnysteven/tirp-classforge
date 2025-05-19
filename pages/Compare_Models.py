@@ -156,7 +156,7 @@ with s1:
 with s2:
     max_n = st.number_input("Maximum student in each class", 50, 3000, 200, 50)
 with s3:
-    seed  = st.number_input("Seed", 0, 9999, 42)
+    seed  = st.number_input("Randomiser", 0, 9999, 42)
 
 if not st.button("Compare Allocation Model"):
     st.stop()
