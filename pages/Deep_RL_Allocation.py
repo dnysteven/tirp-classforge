@@ -179,7 +179,7 @@ with tab_vis:
         reason_counts.to_string(index=False)
     )
 
-    llm = Ollama(model="mistral")  # Change model name if you want
+    llm = Ollama(model="mistral")
     prompt = ChatPromptTemplate.from_template(
         "Summarize the following allocation reasons for a school leader, using concise bullet points for each main category, "
         "and make sure the explanation is easy to read and highlights why each category matters for students:\n\n{summary}"
